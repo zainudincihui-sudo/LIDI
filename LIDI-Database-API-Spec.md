@@ -26,10 +26,12 @@ Setiap tabel berikut aku jelaskan: **untuk apa**, **isinya kolom apa saja**, dan
 
 Kenapa dibutuhkan: supaya orang yang follow wallet, dapat alert, atau naik ke leaderboard, datanya tersimpan permanen — bukan hilang begitu browser ditutup (seperti sekarang).
 
+> Catatan: LIDI memutuskan **tidak mewajibkan koneksi wallet sama sekali** — ini murni platform analitik. Jadi akun user di sini pakai login biasa (email), bukan alamat wallet.
+
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | `id` | UUID | ID unik user, dibuat otomatis oleh sistem |
-| `wallet_address` | string | Alamat wallet yang dipakai user untuk login |
+| `email` | string | Email yang dipakai user untuk login |
 | `username` | string (opsional) | Nama tampilan, bisa diisi belakangan |
 | `created_at` | timestamp | Kapan user pertama kali daftar |
 
@@ -145,8 +147,9 @@ Ini "menu permintaan" yang bisa diajukan frontend ke backend. Aku kelompokkan se
 ### Search
 - `GET /api/search?q=...` → cari token dan wallet sekaligus (menggantikan search JS statis yang sekarang)
 
-### Auth (login via wallet)
-- `POST /api/auth/connect` → login/daftar otomatis pakai alamat wallet
+### Auth (login via email — bukan wallet)
+- `POST /api/auth/signup` → daftar akun baru pakai email
+- `POST /api/auth/login` → login dengan email
 
 ---
 

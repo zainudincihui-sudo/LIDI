@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>LIDI — See Who Moves First | On-Chain Social Intelligence</title>
-  <meta name="description" content="LIDI is a social intelligence platform for on-chain traders. Discover trending memecoins, follow smart wallets, and spot on-chain activity before everyone else." />
-  <meta name="keywords" content="LIDI, on-chain analytics, smart wallets, memecoin tracker, crypto trading, wallet tracking, Robinhood Chain, trending tokens" />
+  <title>LIDI — See Who Moves First | On-Chain Social Intelligence on Robinhood Chain</title>
+  <meta name="description" content="LIDI is a social intelligence platform for traders on Robinhood Chain. Discover trending memecoins, follow smart wallets, and spot on-chain activity before everyone else." />
+  <meta name="keywords" content="LIDI, Robinhood Chain, on-chain analytics, smart wallets, memecoin tracker, crypto trading, wallet tracking, trending tokens" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://lidi.io/" />
   <meta name="theme-color" content="#fbf7ed" />
@@ -14,20 +14,24 @@
   <!-- Open Graph / Facebook, Discord, Telegram -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://lidi.io/" />
-  <meta property="og:title" content="LIDI — See Who Moves First" />
-  <meta property="og:description" content="Discover trending memecoins, follow smart wallets, and spot on-chain activity before everyone else." />
+  <meta property="og:title" content="LIDI — See Who Moves First | Built on Robinhood Chain" />
+  <meta property="og:description" content="On-chain social intelligence for Robinhood Chain. Discover trending memecoins, follow smart wallets, and spot activity before everyone else." />
   <meta property="og:image" content="https://lidi.io/lidi-logo.png" />
   <meta property="og:site_name" content="LIDI" />
   <meta property="og:locale" content="en_US" />
 
   <!-- Twitter / X Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="LIDI — See Who Moves First" />
-  <meta name="twitter:description" content="Discover trending memecoins, follow smart wallets, and spot on-chain activity before everyone else." />
+  <meta name="twitter:title" content="LIDI — See Who Moves First | Built on Robinhood Chain" />
+  <meta name="twitter:description" content="On-chain social intelligence for Robinhood Chain. Discover trending memecoins, follow smart wallets, and spot activity before everyone else." />
   <meta name="twitter:image" content="https://lidi.io/lidi-logo.png" />
 
   <link rel="icon" type="image/png" href="lidi-logo-icon.png" />
   <link rel="apple-touch-icon" href="lidi-logo-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
   <script type="application/ld+json">
   {
@@ -53,13 +57,37 @@
       --blue: #3184ed;
       --purple: #7549e8;
       --dark: #10141b;
+      --on-dark: #ffffff;
+      --border-hover: #c9c1af;
+      --stat-bg: #f5f1e8;
+      --gain-bg: #eaf8e8;
+      --gain-text: #238c22;
+      --grid-dot: rgba(17, 21, 28, .07);
       --radius: 20px;
       --shadow: 0 14px 40px rgba(25, 30, 40, .07);
+    }
+
+    html[data-theme="dark"] {
+      --cream: #0a0d13;
+      --card: #12161f;
+      --ink: #f1f3f7;
+      --muted: #939bab;
+      --line: #232838;
+      --dark: #f1f3f7;
+      --on-dark: #0a0d13;
+      --border-hover: #3a4156;
+      --stat-bg: rgba(255, 255, 255, .05);
+      --gain-bg: rgba(83, 216, 79, .16);
+      --gain-text: #7eea79;
+      --grid-dot: rgba(241, 243, 247, .05);
+      --shadow: 0 14px 40px rgba(0, 0, 0, .35);
     }
 
     * { box-sizing: border-box; }
 
     html { scroll-behavior: smooth; }
+
+    body { transition: background-color .3s ease, color .3s ease; }
 
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -100,7 +128,7 @@
         radial-gradient(480px circle at 88% 4%, rgba(49, 132, 237, .13), transparent 58%),
         radial-gradient(620px circle at 92% 58%, rgba(117, 73, 232, .11), transparent 58%),
         radial-gradient(500px circle at 4% 62%, rgba(24, 201, 180, .13), transparent 58%),
-        radial-gradient(rgba(17, 21, 28, .07) 1px, transparent 1px);
+        radial-gradient(var(--grid-dot) 1px, transparent 1px);
       background-size: auto, auto, auto, auto, 26px 26px;
       background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
       background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
@@ -116,11 +144,19 @@
 
     /* NAV */
     nav {
-      height: 78px;
+      height: 88px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--cream);
+      transition: box-shadow .25s ease, background-color .3s ease;
+    }
+
+    nav.scrolled {
+      box-shadow: 0 8px 24px rgba(25, 30, 40, .08);
     }
 
     .wordmark {
@@ -138,19 +174,19 @@
       gap: 12px;
       color: var(--ink);
       text-decoration: none;
-      font-size: 25px;
+      font-size: 32px;
       font-weight: 900;
       letter-spacing: -1.5px;
     }
 
     .brand img {
-      width: 46px;
-      height: 46px;
-      border-radius: 13px;
+      width: 58px;
+      height: 58px;
+      border-radius: 15px;
       object-fit: cover;
-      background: #ffffff;
-      border: 1.5px solid #d8d0bd;
-      box-shadow: 0 3px 10px rgba(25, 30, 40, .10);
+      background: #10141b;
+      border: none;
+      box-shadow: 0 3px 10px rgba(25, 30, 40, .18);
     }
 
     .nav-right {
@@ -159,10 +195,9 @@
       gap: 10px;
     }
 
-    .bell-btn {
-      position: relative;
+    .theme-btn {
       border: 1px solid var(--line);
-      background: white;
+      background: var(--card);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -173,7 +208,24 @@
       transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
     }
 
-    .bell-btn:hover { border-color: #c9c1af; box-shadow: 0 6px 14px rgba(25,30,40,.06); }
+    .theme-btn:hover { border-color: var(--border-hover); box-shadow: 0 6px 14px rgba(25,30,40,.06); transform: rotate(20deg); }
+    .theme-btn:active { transform: scale(.92); }
+
+    .bell-btn {
+      position: relative;
+      border: 1px solid var(--line);
+      background: var(--card);
+      width: 44px;
+      height: 44px;
+      border-radius: 13px;
+      cursor: pointer;
+      font-size: 17px;
+      display: grid;
+      place-items: center;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .bell-btn:hover { border-color: var(--border-hover); box-shadow: 0 6px 14px rgba(25,30,40,.06); }
     .bell-btn:hover .bell-icon { display: inline-block; animation: bell-ring .5s ease; }
     .bell-btn:active { transform: scale(.94); }
 
@@ -244,7 +296,7 @@
       border-radius: 12px;
     }
 
-    .alert-item:hover { background: #f5f1e8; }
+    .alert-item:hover { background: var(--stat-bg); }
 
     .alert-item .dot {
       width: 8px;
@@ -260,7 +312,7 @@
 
     .menu-btn {
       border: 1px solid var(--line);
-      background: white;
+      background: var(--card);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -271,7 +323,7 @@
       transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
     }
 
-    .menu-btn:hover { border-color: #c9c1af; box-shadow: 0 6px 14px rgba(25,30,40,.06); transform: rotate(90deg); }
+    .menu-btn:hover { border-color: var(--border-hover); box-shadow: 0 6px 14px rgba(25,30,40,.06); transform: rotate(90deg); }
     .menu-btn:active { transform: rotate(90deg) scale(.9); }
 
     .menu-panel {
@@ -326,39 +378,15 @@
     /* HERO */
     .hero {
       padding: 56px 0 35px;
-      display: flex;
-      align-items: center;
-      gap: 40px;
     }
 
-    .hero-text { flex: 1; min-width: 0; }
-
-    .hero-mark {
-      flex: 0 0 auto;
-      width: 190px;
-      height: 190px;
-      display: grid;
-      place-items: center;
-    }
-
-    .hero-mark img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      filter: drop-shadow(0 18px 30px rgba(30, 130, 120, .16));
-      animation: hero-float 5s ease-in-out infinite;
-    }
-
-    @keyframes hero-float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
+    .hero-text { max-width: 820px; }
 
     .eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: #ffffffb8;
+      background: var(--card);
       border: 1px solid var(--line);
       border-radius: 999px;
       padding: 8px 12px;
@@ -408,11 +436,14 @@
       flex: 1;
       min-width: 0;
       border: 1px solid var(--line);
-      background: white;
+      background: var(--card);
+      color: var(--ink);
       padding: 15px 17px;
       border-radius: 15px;
       outline: none;
     }
+
+    .search-box input::placeholder { color: var(--muted); }
 
     .search-box input:focus {
       border-color: var(--blue);
@@ -422,7 +453,7 @@
     .explore-btn {
       border: 0;
       background: var(--dark);
-      color: white;
+      color: var(--on-dark);
       border-radius: 15px;
       padding: 0 22px;
       font-weight: 850;
@@ -440,6 +471,50 @@
       min-height: 18px;
     }
 
+    /* CHAIN BANNER */
+    .chain-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--green);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-top: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .chain-dot {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 10px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(83, 216, 79, .18);
+      animation: chain-pulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes chain-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(83, 216, 79, .18); }
+      50% { box-shadow: 0 0 0 8px rgba(83, 216, 79, .08); }
+    }
+
+    .chain-text strong {
+      display: block;
+      font-size: 14.5px;
+      letter-spacing: -.2px;
+    }
+
+    .chain-text span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
     /* TABS */
     .tabs {
       display: flex;
@@ -454,8 +529,8 @@
     .tab {
       white-space: nowrap;
       border: 1px solid var(--line);
-      background: white;
-      color: #5d6570;
+      background: var(--card);
+      color: var(--muted);
       border-radius: 999px;
       padding: 10px 15px;
       font-weight: 800;
@@ -463,12 +538,12 @@
       transition: transform .18s ease, border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
     }
 
-    .tab:hover { border-color: #c9c1af; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(25,30,40,.06); }
+    .tab:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 6px 14px rgba(25,30,40,.06); }
     .tab:active { transform: translateY(0) scale(.97); }
 
     .tab.active {
       background: var(--dark);
-      color: white;
+      color: var(--on-dark);
       border-color: var(--dark);
     }
 
@@ -566,8 +641,8 @@
     }
 
     .gain {
-      color: #238c22;
-      background: #eaf8e8;
+      color: var(--gain-text);
+      background: var(--gain-bg);
       border-radius: 999px;
       padding: 6px 9px;
       font-size: 12px;
@@ -601,7 +676,7 @@
       height: 46px;
       border-radius: 14px;
       background: var(--dark);
-      color: white;
+      color: var(--on-dark);
       display: grid;
       place-items: center;
       font-weight: 900;
@@ -616,7 +691,7 @@
       margin-left: auto;
       flex: 0 0 auto;
       border: 1px solid var(--line);
-      background: white;
+      background: var(--card);
       color: var(--ink);
       font-weight: 850;
       font-size: 12px;
@@ -626,12 +701,12 @@
       transition: transform .18s ease, border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
     }
 
-    .follow-btn:hover { border-color: #c9c1af; transform: translateY(-1px); box-shadow: 0 6px 12px rgba(25,30,40,.06); }
+    .follow-btn:hover { border-color: var(--border-hover); transform: translateY(-1px); box-shadow: 0 6px 12px rgba(25,30,40,.06); }
     .follow-btn:active { transform: translateY(0) scale(.94); }
 
     .follow-btn.following {
       background: var(--dark);
-      color: white;
+      color: var(--on-dark);
       border-color: var(--dark);
       animation: follow-pop .3s ease;
     }
@@ -650,7 +725,7 @@
     }
 
     .stat {
-      background: #f5f1e8;
+      background: var(--stat-bg);
       padding: 11px;
       border-radius: 12px;
     }
@@ -839,12 +914,11 @@
     @media (max-width: 800px) {
       body { background-attachment: scroll, scroll, scroll, scroll, scroll; }
       .container { width: min(100% - 24px, 1160px); }
-      nav { height: 68px; }
-      .brand img { width: 38px; height: 38px; }
-      .brand { font-size: 23px; }
-      .hero { padding-top: 30px; flex-direction: column; gap: 26px; }
-      .hero-mark { width: 120px; height: 120px; order: 2; }
-      .hero-text { order: 1; text-align: center; }
+      nav { height: 74px; }
+      .brand img { width: 46px; height: 46px; }
+      .brand { font-size: 26px; }
+      .hero { padding-top: 30px; }
+      .hero-text { text-align: center; }
       .eyebrow { margin-left: auto; margin-right: auto; }
       .hero-copy { margin-left: auto; margin-right: auto; }
       .search-box { flex-direction: column; max-width: 100%; }
@@ -866,6 +940,8 @@
         <span class="wordmark">LID<span class="wm-i">i</span></span>
       </a>
       <div class="nav-right">
+        <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" onclick="toggleTheme()">🌙</button>
+
         <button class="bell-btn" id="bellBtn" aria-label="Alerts" onclick="toggleAlerts()">
           <span class="bell-icon">🔔</span>
           <span class="bell-badge" id="bellBadge" style="display:none">0</span>
@@ -901,7 +977,7 @@
         <div class="hero-text">
           <div class="eyebrow">
             <span></span>
-            On-chain social intelligence
+            Built on Robinhood Chain
           </div>
 
           <h1>
@@ -909,8 +985,9 @@
           </h1>
 
           <p class="hero-copy">
+            On-chain social intelligence for <strong>Robinhood Chain</strong>.
             Discover trending memecoins, follow smart wallets,
-            and spot on-chain activity before everyone else.
+            and spot activity before everyone else.
           </p>
 
           <div class="search-box">
@@ -928,11 +1005,15 @@
           </div>
           <div id="searchStatus"></div>
         </div>
-
-        <div class="hero-mark">
-          <img src="lidi-logo.png" alt="LIDI mascot logo">
-        </div>
       </section>
+
+      <div class="chain-banner">
+        <div class="chain-dot"></div>
+        <div class="chain-text">
+          <strong>Running on Robinhood Chain</strong>
+          <span>All wallet activity and token data on LIDI is indexed directly from Robinhood Chain.</span>
+        </div>
+      </div>
 
       <div class="tabs" role="tablist">
         <button class="tab active" data-view="trending" role="tab" aria-selected="true">🔥 Trending</button>
@@ -1193,13 +1274,12 @@
         <p><strong>Trending Tokens</strong> surfaces memecoins gaining volume and holders in real time. <strong>Smart Wallets</strong> ranks addresses by track record, so you can see who's consistently early and profitable. <strong>Live Activity</strong> streams on-chain transactions as they happen. <strong>Leaderboard</strong> ranks the best-performing traders over time. <strong>Follow & Alerts</strong> lets you track specific wallets and get notified the moment they act.</p>
 
         <h3>How we're building it</h3>
-        <p>LIDI is being built in stages, from the ground up:</p>
+        <p>LIDI is being built in stages, from the ground up, as a pure analytics platform — no wallet connection required, ever:</p>
         <p>
           <strong>V1 — Discovery:</strong> tokens, wallets, and live activity.<br>
           <strong>V2 — Social:</strong> follow, profiles, and leaderboards.<br>
           <strong>V3 — Intelligence:</strong> the LIDI Score and smart alerts.<br>
-          <strong>V4 — AI:</strong> automated analysis that surfaces opportunities for you.<br>
-          <strong>V5 — Copy Trading:</strong> follow a trader's strategy directly.
+          <strong>V4 — AI:</strong> automated analysis that surfaces opportunities for you.
         </p>
 
         <h3>Built on Robinhood Chain</h3>
@@ -1235,17 +1315,17 @@
       <div class="card info-card">
         <p>Last updated: 2026. This Privacy Policy explains how LIDI handles information when you use the site.</p>
 
-        <h3>1. On-chain data</h3>
-        <p>LIDI displays publicly available on-chain data — wallet addresses, balances, and transactions that are already visible on Robinhood Chain. This data is not private; we index and organize it, but we don't control or own it.</p>
+        <h3>1. No wallet connection</h3>
+        <p>LIDI does not require or offer wallet connection. You can use every feature — trending tokens, smart wallets, live activity, leaderboard, follow & alerts — without ever connecting a wallet or exposing any private key.</p>
 
-        <h3>2. Wallet connections</h3>
-        <p>If you connect a wallet, we use only your public address to personalize your view — for example, to save which wallets you follow and to show relevant alerts. LIDI never asks for, transmits, or stores your private keys or seed phrase, under any circumstance.</p>
+        <h3>2. On-chain data</h3>
+        <p>LIDI displays publicly available on-chain data — wallet addresses, balances, and transactions that are already visible on Robinhood Chain. This data is not private; we index and organize it, but we don't control or own it.</p>
 
         <h3>3. Information we collect</h3>
         <p>We may collect basic usage data (such as pages visited or features used) to understand how LIDI is used and to improve it. We do not sell personal data to third parties.</p>
 
         <h3>4. Cookies & local storage</h3>
-        <p>LIDI may use local storage in your browser to remember preferences like followed wallets or active tabs. This stays on your device unless you're signed in and syncing across devices.</p>
+        <p>LIDI uses local storage in your browser to remember preferences like followed wallets or active tabs. This stays on your device and is never linked to a wallet or identity.</p>
 
         <h3>5. Third-party services</h3>
         <p>LIDI may rely on third-party infrastructure (such as blockchain indexers or analytics providers) to operate. These providers only receive the minimum data needed to function.</p>
@@ -1274,8 +1354,8 @@
         <h3>3. Your responsibility</h3>
         <p>You are solely responsible for your own trading and investment decisions, including any risk taken from following wallets, tokens, or strategies shown on LIDI. Always do your own research.</p>
 
-        <h3>4. Wallet connections</h3>
-        <p>If you choose to connect a wallet, you do so at your own discretion. LIDI will never request your private keys or seed phrase, and you should never share them with anyone claiming to represent LIDI.</p>
+        <h3>4. No wallet connection required</h3>
+        <p>LIDI does not require, offer, or support wallet connection. LIDI staff will never ask for your private keys or seed phrase — treat any such request as fraudulent.</p>
 
         <h3>5. Acceptable use</h3>
         <p>You agree not to misuse LIDI — including attempting to disrupt the service, scrape data at abusive scale, or use the platform for unlawful purposes.</p>
@@ -1297,7 +1377,7 @@
             <img src="lidi-logo-icon.png" alt="LIDI logo">
             <span class="wordmark">LID<span class="wm-i">i</span></span>
           </a>
-          <p>Social intelligence for on-chain traders. See who moves first.</p>
+          <p>Social intelligence for on-chain traders. Built on Robinhood Chain.</p>
           <div class="footer-social">
             <a href="#" aria-label="LIDI on X">𝕏</a>
           </div>
@@ -1328,6 +1408,32 @@
   </div>
 
   <script>
+    // ---- Theme (light/dark) ----
+    let currentTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      const btn = document.getElementById("themeBtn");
+      if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0d13" : "#fbf7ed");
+    }
+
+    function toggleTheme() {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      applyTheme(currentTheme);
+    }
+
+    applyTheme(currentTheme);
+
+    // ---- Sticky nav shadow on scroll ----
+    const navEl = document.querySelector("nav");
+    window.addEventListener("scroll", () => {
+      navEl.classList.toggle("scrolled", window.scrollY > 8);
+    }, { passive: true });
+
     // ---- Follow & Alerts (in-memory, session only) ----
     const followed = new Set();
     const alerts = [];
