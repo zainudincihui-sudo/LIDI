@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,7 +9,7 @@
   <meta name="keywords" content="LIDI, Robinhood Chain, on-chain analytics, smart wallets, memecoin tracker, crypto trading, wallet tracking, trending tokens" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://lidi.io/" />
-  <meta name="theme-color" content="#fbf7ed" />
+  <meta name="theme-color" content="#0a0d13" />
 
   <!-- Open Graph / Facebook, Discord, Telegram -->
   <meta property="og:type" content="website" />
@@ -940,7 +940,7 @@
         <span class="wordmark">LID<span class="wm-i">i</span></span>
       </a>
       <div class="nav-right">
-        <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" onclick="toggleTheme()">🌙</button>
+        <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" onclick="toggleTheme()">☀️</button>
 
         <button class="bell-btn" id="bellBtn" aria-label="Alerts" onclick="toggleAlerts()">
           <span class="bell-icon">🔔</span>
@@ -1408,10 +1408,8 @@
   </div>
 
   <script>
-    // ---- Theme (light/dark) ----
-    let currentTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    // ---- Theme (light/dark) — dark is the default ----
+    let currentTheme = "dark";
 
     function applyTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
