@@ -62,6 +62,7 @@
       --stat-bg: #f5f1e8;
       --gain-bg: #eaf8e8;
       --gain-text: #238c22;
+      --loss-text: #d13c3c;
       --grid-dot: rgba(17, 21, 28, .07);
       --radius: 20px;
       --shadow: 0 14px 40px rgba(25, 30, 40, .07);
@@ -80,6 +81,7 @@
       --stat-bg: rgba(255, 255, 255, .05);
       --gain-bg: rgba(83, 216, 79, .16);
       --gain-text: #7eea79;
+      --loss-text: #ff6b6b;
       --grid-dot: rgba(241, 243, 247, .05);
       --shadow: 0 14px 40px rgba(0, 0, 0, .35);
       --icon-btn-bg: #1c212e;
@@ -115,14 +117,18 @@
     .bottom-nav {
       display: none;
       position: fixed;
+      top: auto;
       bottom: 0;
       left: 0;
       right: 0;
+      height: auto;
       z-index: 40;
       background: var(--card);
       border-top: 1px solid var(--line);
       padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
       box-shadow: 0 -8px 24px rgba(0,0,0,.06);
+      align-items: stretch;
+      justify-content: space-between;
     }
 
     .bottom-tab {
@@ -240,6 +246,50 @@
 
     nav.scrolled {
       box-shadow: 0 8px 24px rgba(25, 30, 40, .08);
+    }
+
+    /* TICKER */
+    .ticker-wrap {
+      overflow: hidden;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--card);
+      -webkit-mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+      mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+    }
+
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      animation: ticker-scroll 32s linear infinite;
+    }
+
+    .ticker-wrap:hover .ticker-track { animation-play-state: paused; }
+
+    @keyframes ticker-scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    .ticker-item {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 22px;
+      font-size: 12.5px;
+      white-space: nowrap;
+      border-right: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .ticker-item strong { color: var(--ink); font-weight: 800; }
+    .ticker-item em { font-style: normal; font-weight: 800; }
+    .ticker-item em.up { color: var(--gain-text); }
+    .ticker-item em.down { color: var(--loss-text); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ticker-track { animation: none; }
     }
 
     .wordmark {
@@ -1174,6 +1224,25 @@
         </div>
       </div>
     </nav>
+
+    <div class="ticker-wrap" aria-hidden="true">
+      <div class="ticker-track" id="tickerTrack">
+        <span class="ticker-item"><strong>$LIDI</strong> $0.0842 <em class="up">+84.2%</em></span>
+        <span class="ticker-item"><strong>$CAT</strong> $0.0178 <em class="up">+47.8%</em></span>
+        <span class="ticker-item"><strong>$FROG</strong> $0.0061 <em class="up">+31.6%</em></span>
+        <span class="ticker-item"><strong>$MOON</strong> $0.1204 <em class="down">-12.4%</em></span>
+        <span class="ticker-item"><strong>$PUMP</strong> $0.0033 <em class="up">+19.7%</em></span>
+        <span class="ticker-item"><strong>$RH</strong> $0.4210 <em class="down">-3.1%</em></span>
+        <span class="ticker-item"><strong>$DEGEN</strong> $0.0092 <em class="up">+62.5%</em></span>
+        <span class="ticker-item"><strong>$LIDI</strong> $0.0842 <em class="up">+84.2%</em></span>
+        <span class="ticker-item"><strong>$CAT</strong> $0.0178 <em class="up">+47.8%</em></span>
+        <span class="ticker-item"><strong>$FROG</strong> $0.0061 <em class="up">+31.6%</em></span>
+        <span class="ticker-item"><strong>$MOON</strong> $0.1204 <em class="down">-12.4%</em></span>
+        <span class="ticker-item"><strong>$PUMP</strong> $0.0033 <em class="up">+19.7%</em></span>
+        <span class="ticker-item"><strong>$RH</strong> $0.4210 <em class="down">-3.1%</em></span>
+        <span class="ticker-item"><strong>$DEGEN</strong> $0.0092 <em class="up">+62.5%</em></span>
+      </div>
+    </div>
 
     <main>
       <section class="hero">
