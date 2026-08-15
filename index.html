@@ -65,6 +65,7 @@
       --grid-dot: rgba(17, 21, 28, .07);
       --radius: 20px;
       --shadow: 0 14px 40px rgba(25, 30, 40, .07);
+      --icon-btn-bg: #ffffff;
     }
 
     html[data-theme="dark"] {
@@ -81,6 +82,7 @@
       --gain-text: #7eea79;
       --grid-dot: rgba(241, 243, 247, .05);
       --shadow: 0 14px 40px rgba(0, 0, 0, .35);
+      --icon-btn-bg: #1c212e;
     }
 
     * { box-sizing: border-box; }
@@ -161,7 +163,7 @@
 
     .wordmark {
       font-weight: 900;
-      letter-spacing: -0.5px;
+      letter-spacing: 1px;
     }
 
     .wordmark .wm-i {
@@ -197,7 +199,7 @@
 
     .theme-btn {
       border: 1px solid var(--line);
-      background: var(--card);
+      background: var(--icon-btn-bg);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -214,7 +216,7 @@
     .bell-btn {
       position: relative;
       border: 1px solid var(--line);
-      background: var(--card);
+      background: var(--icon-btn-bg);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -312,12 +314,14 @@
 
     .menu-btn {
       border: 1px solid var(--line);
-      background: var(--card);
+      background: var(--icon-btn-bg);
+      color: var(--ink);
       width: 44px;
       height: 44px;
       border-radius: 13px;
       cursor: pointer;
-      font-size: 17px;
+      font-size: 19px;
+      font-weight: 700;
       display: grid;
       place-items: center;
       transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
