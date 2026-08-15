@@ -87,7 +87,87 @@
 
     * { box-sizing: border-box; }
 
+    .icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      vertical-align: -4px;
+    }
+
+    .icon-btn-svg { width: 20px; height: 20px; }
+    .tab-icon { width: 15px; height: 15px; margin-right: 2px; }
+    .section-icon { width: 21px; height: 21px; margin-right: 6px; vertical-align: -5px; }
+
+    .loading-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green), var(--teal), var(--blue), var(--purple));
+      z-index: 60;
+      opacity: 0;
+      transition: width .35s ease, opacity .2s ease;
+    }
+
+    .loading-bar.active { opacity: 1; }
+
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      background: var(--card);
+      border-top: 1px solid var(--line);
+      padding: 8px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -8px 24px rgba(0,0,0,.06);
+    }
+
+    .bottom-tab {
+      flex: 1;
+      border: 0;
+      background: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 4px;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 12px;
+      transition: color .18s ease, background .18s ease, transform .12s ease;
+    }
+
+    .bottom-tab .icon { width: 20px; height: 20px; }
+    .bottom-tab:active { transform: scale(.92); }
+
+    .bottom-tab.active {
+      color: var(--green);
+      background: var(--stat-bg);
+    }
+
+    @media (max-width: 800px) {
+      .bottom-nav { display: flex; }
+      .site-footer { padding-bottom: 90px; }
+    }
+
     html { scroll-behavior: smooth; }
+
+    /* CUSTOM SCROLLBAR */
+    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar-track { background: var(--cream); }
+    ::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 999px;
+      border: 3px solid var(--cream);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+    html { scrollbar-width: thin; scrollbar-color: var(--line) var(--cream); }
 
     body { transition: background-color .3s ease, color .3s ease; }
 
@@ -124,6 +204,7 @@
       margin: 0;
       color: var(--ink);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-variant-numeric: tabular-nums;
       background-color: var(--cream);
       background-image:
         radial-gradient(560px circle at 12% 8%, rgba(83, 216, 79, .16), transparent 60%),
@@ -200,6 +281,7 @@
     .theme-btn {
       border: 1px solid var(--line);
       background: var(--icon-btn-bg);
+      color: var(--ink);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -217,6 +299,7 @@
       position: relative;
       border: 1px solid var(--line);
       background: var(--icon-btn-bg);
+      color: var(--ink);
       width: 44px;
       height: 44px;
       border-radius: 13px;
@@ -475,6 +558,29 @@
       min-height: 18px;
     }
 
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+      margin-top: 34px;
+      padding-top: 26px;
+      border-top: 1px solid var(--line);
+    }
+
+    .hero-stat strong {
+      display: block;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hero-stat span {
+      display: block;
+      margin-top: 2px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
     /* CHAIN BANNER */
     .chain-banner {
       display: flex;
@@ -539,6 +645,8 @@
       padding: 10px 15px;
       font-weight: 800;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
       transition: transform .18s ease, border-color .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
     }
 
@@ -553,7 +661,14 @@
 
     /* SECTIONS */
     .view { display: none; }
-    .view.active { display: block; }
+    .view.active { display: block; animation: view-fade .3s ease; }
+
+    @keyframes view-fade {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .view-loading { opacity: .4; filter: blur(2px); }
 
     section {
       padding: 28px 0;
@@ -571,6 +686,8 @@
       margin: 0;
       font-size: 24px;
       letter-spacing: -1px;
+      display: flex;
+      align-items: center;
     }
 
     .muted {
@@ -603,11 +720,40 @@
       background: var(--card);
       border: 1px dashed var(--line);
       border-radius: var(--radius);
-      padding: 30px;
+      padding: 44px 24px;
       text-align: center;
       color: var(--muted);
       display: none;
     }
+
+    .empty-state .icon {
+      width: 34px;
+      height: 34px;
+      margin-bottom: 12px;
+      color: var(--muted);
+      opacity: .6;
+    }
+
+    .empty-state strong {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .empty-state button {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      background: var(--icon-btn-bg);
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 12.5px;
+      padding: 9px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .empty-state button:hover { border-color: var(--border-hover); }
 
     /* TOKEN CARDS */
     .token-top {
@@ -660,12 +806,11 @@
       letter-spacing: -1px;
     }
 
-    .chart {
+    .sparkline {
+      width: 100%;
       height: 55px;
       margin-top: 13px;
-      border-bottom: 2px solid #d9f3d6;
-      background: linear-gradient(180deg, rgba(83,216,79,.15), transparent);
-      clip-path: polygon(0 78%, 10% 70%, 20% 74%, 30% 58%, 40% 63%, 50% 48%, 60% 52%, 70% 35%, 80% 42%, 90% 14%, 100% 20%, 100% 100%, 0 100%);
+      display: block;
     }
 
     /* WALLETS */
@@ -927,6 +1072,8 @@
       .hero-copy { margin-left: auto; margin-right: auto; }
       .search-box { flex-direction: column; max-width: 100%; }
       h1 { letter-spacing: -2px; }
+      .hero-stats { justify-content: center; gap: 24px; }
+      .hero-stat strong { font-size: 20px; }
       .grid { grid-template-columns: 1fr; }
       .explore-btn { height: 50px; }
       .footer-top { grid-template-columns: 1fr 1fr; }
@@ -936,6 +1083,58 @@
 </head>
 
 <body>
+  <svg style="display:none" aria-hidden="true">
+    <defs>
+      <linearGradient id="sparkline-fill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#53d84f" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#53d84f" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <symbol id="icon-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+    </symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+      <circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="icon-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/>
+      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+    </symbol>
+    <symbol id="icon-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>
+    </symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10.268 21a2 2 0 0 0 3.464 0"/>
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>
+    </symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="4" y1="6" x2="20" y2="6"/>
+      <line x1="4" y1="12" x2="20" y2="12"/>
+      <line x1="4" y1="18" x2="20" y2="18"/>
+    </symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+    </symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+    </symbol>
+    <symbol id="icon-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </symbol>
+  </svg>
+
+  <div class="loading-bar" id="loadingBar"></div>
+
   <div class="container">
 
     <nav>
@@ -944,10 +1143,10 @@
         <span class="wordmark">LID<span class="wm-i">i</span></span>
       </a>
       <div class="nav-right">
-        <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" onclick="toggleTheme()">☀️</button>
+        <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode" onclick="toggleTheme()"><svg class="icon-btn-svg"><use href="#icon-sun"/></svg></button>
 
         <button class="bell-btn" id="bellBtn" aria-label="Alerts" onclick="toggleAlerts()">
-          <span class="bell-icon">🔔</span>
+          <span class="bell-icon"><svg class="icon-btn-svg"><use href="#icon-bell"/></svg></span>
           <span class="bell-badge" id="bellBadge" style="display:none">0</span>
         </button>
         <div class="alerts-panel" id="alertsPanel">
@@ -956,7 +1155,7 @@
           <div id="alertsList"></div>
         </div>
 
-        <button class="menu-btn" id="menuBtn" aria-label="Menu" onclick="toggleMenu()">☰</button>
+        <button class="menu-btn" id="menuBtn" aria-label="Menu" onclick="toggleMenu()"><svg class="icon-btn-svg"><use href="#icon-menu"/></svg></button>
         <div class="menu-panel" id="menuPanel">
           <div class="menu-group">
             <h4>Product</h4>
@@ -1008,6 +1207,21 @@
             </button>
           </div>
           <div id="searchStatus"></div>
+
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <strong>1,284</strong>
+              <span>Wallets tracked</span>
+            </div>
+            <div class="hero-stat">
+              <strong>$8.4M</strong>
+              <span>Volume indexed</span>
+            </div>
+            <div class="hero-stat">
+              <strong>342</strong>
+              <span>Tokens tracked</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1020,17 +1234,17 @@
       </div>
 
       <div class="tabs" role="tablist">
-        <button class="tab active" data-view="trending" role="tab" aria-selected="true">🔥 Trending</button>
-        <button class="tab" data-view="wallets" role="tab" aria-selected="false">👀 Smart Wallets</button>
-        <button class="tab" data-view="leaderboard" role="tab" aria-selected="false">🏆 Leaderboard</button>
-        <button class="tab" data-view="activity" role="tab" aria-selected="false">⚡ Activity</button>
+        <button class="tab active" data-view="trending" role="tab" aria-selected="true"><svg class="icon tab-icon"><use href="#icon-flame"/></svg>Trending</button>
+        <button class="tab" data-view="wallets" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-eye"/></svg>Smart Wallets</button>
+        <button class="tab" data-view="leaderboard" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-trophy"/></svg>Leaderboard</button>
+        <button class="tab" data-view="activity" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-zap"/></svg>Activity</button>
       </div>
 
       <!-- TRENDING -->
       <section class="view active" id="view-trending">
         <div class="section-heading">
           <div>
-            <h2>🔥 Trending</h2>
+            <h2><svg class="icon section-icon"><use href="#icon-flame"/></svg>Trending</h2>
             <div class="muted">Sample data · live feed coming soon</div>
           </div>
           <div class="muted">24h</div>
@@ -1052,7 +1266,10 @@
 
             <div class="price">$0.0842</div>
             <div class="muted">Volume $1.82M · 3.4K holders</div>
-            <div class="chart"></div>
+            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
+              <polygon points="0,28 14,24 28,26 42,16 56,19 70,9 84,12 100,3 100,34 0,34" fill="url(#sparkline-fill)"/>
+              <polyline points="0,28 14,24 28,26 42,16 56,19 70,9 84,12 100,3" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </article>
 
           <article class="card token-card" data-search="cat meme">
@@ -1069,7 +1286,10 @@
 
             <div class="price">$0.0178</div>
             <div class="muted">Volume $942K · 8.1K holders</div>
-            <div class="chart"></div>
+            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
+              <polygon points="0,30 14,29 28,20 42,23 56,14 70,17 84,8 100,10 100,34 0,34" fill="url(#sparkline-fill)"/>
+              <polyline points="0,30 14,29 28,20 42,23 56,14 70,17 84,8 100,10" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </article>
 
           <article class="card token-card" data-search="frog alpha">
@@ -1086,18 +1306,26 @@
 
             <div class="price">$0.0061</div>
             <div class="muted">Volume $516K · 2.2K holders</div>
-            <div class="chart"></div>
+            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
+              <polygon points="0,26 14,27 28,22 42,24 56,18 70,20 84,15 100,13 100,34 0,34" fill="url(#sparkline-fill)"/>
+              <polyline points="0,26 14,27 28,22 42,24 56,18 70,20 84,15 100,13" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </article>
 
         </div>
-        <div class="empty-state" id="emptyTrending">No tokens match your search.</div>
+        <div class="empty-state" id="emptyTrending">
+          <svg class="icon"><use href="#icon-search"/></svg>
+          <strong>No tokens found</strong>
+          Try a different name or ticker.
+          <div><button onclick="clearSearch()">Clear search</button></div>
+        </div>
       </section>
 
       <!-- SMART WALLETS -->
       <section class="view" id="view-wallets">
         <div class="section-heading">
           <div>
-            <h2>👀 Smart Wallets</h2>
+            <h2><svg class="icon section-icon"><use href="#icon-eye"/></svg>Smart Wallets</h2>
             <div class="muted">Wallet performance is demo data</div>
           </div>
         </div>
@@ -1171,14 +1399,19 @@
           </article>
 
         </div>
-        <div class="empty-state" id="emptyWallets">No wallets match your search.</div>
+        <div class="empty-state" id="emptyWallets">
+          <svg class="icon"><use href="#icon-search"/></svg>
+          <strong>No wallets found</strong>
+          Try a different name or address.
+          <div><button onclick="clearSearch()">Clear search</button></div>
+        </div>
       </section>
 
       <!-- LEADERBOARD -->
       <section class="view" id="view-leaderboard">
         <div class="section-heading">
           <div>
-            <h2>🏆 Leaderboard</h2>
+            <h2><svg class="icon section-icon"><use href="#icon-trophy"/></svg>Leaderboard</h2>
             <div class="muted">Top traders · 30D · demo data</div>
           </div>
         </div>
@@ -1231,7 +1464,7 @@
       <section class="view" id="view-activity">
         <div class="section-heading">
           <div>
-            <h2>⚡ Live Activity</h2>
+            <h2><svg class="icon section-icon"><use href="#icon-zap"/></svg>Live Activity</h2>
             <div class="muted">Example feed for the MVP</div>
           </div>
         </div>
@@ -1411,6 +1644,25 @@
 
   </div>
 
+  <nav class="bottom-nav" id="bottomNav" aria-label="Primary">
+    <button class="bottom-tab active" data-view="trending" aria-label="Trending">
+      <svg class="icon"><use href="#icon-flame"/></svg>
+      <span>Trending</span>
+    </button>
+    <button class="bottom-tab" data-view="wallets" aria-label="Smart Wallets">
+      <svg class="icon"><use href="#icon-eye"/></svg>
+      <span>Wallets</span>
+    </button>
+    <button class="bottom-tab" data-view="leaderboard" aria-label="Leaderboard">
+      <svg class="icon"><use href="#icon-trophy"/></svg>
+      <span>Ranks</span>
+    </button>
+    <button class="bottom-tab" data-view="activity" aria-label="Live Activity">
+      <svg class="icon"><use href="#icon-zap"/></svg>
+      <span>Activity</span>
+    </button>
+  </nav>
+
   <script>
     // ---- Theme (light/dark) — dark is the default ----
     let currentTheme = "dark";
@@ -1418,7 +1670,10 @@
     function applyTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
       const btn = document.getElementById("themeBtn");
-      if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+      if (btn) {
+        const iconId = theme === "dark" ? "#icon-sun" : "#icon-moon";
+        btn.innerHTML = `<svg class="icon-btn-svg"><use href="${iconId}"/></svg>`;
+      }
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0d13" : "#fbf7ed");
     }
@@ -1541,14 +1796,43 @@
     const tabs = document.querySelectorAll(".tab");
     const views = document.querySelectorAll(".view");
 
-    tabs.forEach(tab => {
-      tab.addEventListener("click", () => {
-        tabs.forEach(t => { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
-        views.forEach(v => v.classList.remove("active"));
+    const loadingBar = document.getElementById("loadingBar");
 
-        tab.classList.add("active");
-        tab.setAttribute("aria-selected", "true");
-        document.getElementById("view-" + tab.dataset.view).classList.add("active");
+    function playLoadingBar() {
+      loadingBar.classList.add("active");
+      loadingBar.style.width = "0%";
+      requestAnimationFrame(() => { loadingBar.style.width = "75%"; });
+      setTimeout(() => {
+        loadingBar.style.width = "100%";
+        setTimeout(() => {
+          loadingBar.classList.remove("active");
+          setTimeout(() => { loadingBar.style.width = "0%"; }, 200);
+        }, 150);
+      }, 260);
+    }
+
+    const bottomTabs = document.querySelectorAll(".bottom-tab");
+
+    function switchToView(viewName) {
+      tabs.forEach(t => { t.classList.toggle("active", t.dataset.view === viewName); t.setAttribute("aria-selected", t.dataset.view === viewName ? "true" : "false"); });
+      bottomTabs.forEach(t => t.classList.toggle("active", t.dataset.view === viewName));
+
+      playLoadingBar();
+      const nextView = document.getElementById("view-" + viewName);
+      views.forEach(v => v.classList.remove("active"));
+      nextView.classList.add("active");
+      nextView.classList.add("view-loading");
+      setTimeout(() => nextView.classList.remove("view-loading"), 260);
+    }
+
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => switchToView(tab.dataset.view));
+    });
+
+    bottomTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        switchToView(tab.dataset.view);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       });
     });
 
@@ -1562,6 +1846,13 @@
 
       const { tokenVisible, walletVisible } = searchAll();
       goToTab(walletVisible > tokenVisible ? 1 : 0);
+    }
+
+    function clearSearch() {
+      const input = document.getElementById("search");
+      input.value = "";
+      searchAll();
+      input.focus();
     }
 
     function searchAll() {
