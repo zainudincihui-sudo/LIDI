@@ -26,8 +26,8 @@
   <meta name="twitter:description" content="Discover trending memecoins, follow smart wallets, and spot on-chain activity before everyone else." />
   <meta name="twitter:image" content="https://lidi.io/lidi-logo.png" />
 
-  <link rel="icon" type="image/png" href="lidi-logo.png" />
-  <link rel="apple-touch-icon" href="lidi-logo.png" />
+  <link rel="icon" type="image/png" href="lidi-logo-icon.png" />
+  <link rel="apple-touch-icon" href="lidi-logo-icon.png" />
 
   <script type="application/ld+json">
   {
@@ -144,12 +144,13 @@
     }
 
     .brand img {
-      width: 43px;
-      height: 43px;
+      width: 46px;
+      height: 46px;
       border-radius: 13px;
       object-fit: cover;
-      background: var(--card);
-      border: 1px solid var(--line);
+      background: #ffffff;
+      border: 1.5px solid #d8d0bd;
+      box-shadow: 0 3px 10px rgba(25, 30, 40, .10);
     }
 
     .nav-right {
@@ -807,68 +808,32 @@
       font-size: 12.5px;
     }
 
-    /* MODAL */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(17, 21, 28, .5);
-      z-index: 40;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+    /* INFO SECTIONS (About / Contact / Privacy / Terms) */
+    .info-section {
+      padding: 34px 0;
+      scroll-margin-top: 90px;
     }
 
-    .modal-overlay.open { display: flex; }
-
-    .modal-box {
-      background: var(--card);
-      border-radius: var(--radius);
-      width: min(560px, 100%);
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: var(--shadow);
+    .info-section + .info-section {
+      border-top: 1px solid var(--line);
     }
 
-    .modal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--line);
-      font-weight: 900;
-      font-size: 18px;
-      letter-spacing: -.5px;
-      position: sticky;
-      top: 0;
-      background: var(--card);
-    }
-
-    .modal-head button {
-      border: 0;
-      background: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: var(--muted);
-      line-height: 1;
-    }
-
-    .modal-body {
-      padding: 22px 24px 26px;
+    .info-card {
       color: var(--muted);
       font-size: 14.5px;
       line-height: 1.7;
+      max-width: 760px;
     }
 
-    .modal-body h3 {
+    .info-card h3 {
       color: var(--ink);
       font-size: 15px;
       margin: 20px 0 6px;
     }
 
-    .modal-body h3:first-child { margin-top: 0; }
+    .info-card h3:first-child { margin-top: 0; }
 
-    .modal-body a { color: var(--blue); }
+    .info-card a { color: var(--blue); }
 
     /* MOBILE */
     @media (max-width: 800px) {
@@ -897,7 +862,7 @@
 
     <nav>
       <a href="#" class="brand">
-        <img src="lidi-logo.png" alt="LIDI logo">
+        <img src="lidi-logo-icon.png" alt="LIDI logo">
         <span class="wordmark">LID<span class="wm-i">i</span></span>
       </a>
       <div class="nav-right">
@@ -922,10 +887,10 @@
           </div>
           <div class="menu-group">
             <h4>Company</h4>
-            <a href="javascript:void(0)" onclick="openModal('about'); closeMenu()">About</a>
-            <a href="javascript:void(0)" onclick="openModal('contact'); closeMenu()">Contact</a>
-            <a href="javascript:void(0)" onclick="openModal('privacy'); closeMenu()">Privacy</a>
-            <a href="javascript:void(0)" onclick="openModal('terms'); closeMenu()">Terms</a>
+            <a href="#about" onclick="closeMenu()">About</a>
+            <a href="#contact" onclick="closeMenu()">Contact</a>
+            <a href="#privacy" onclick="closeMenu()">Privacy</a>
+            <a href="#terms" onclick="closeMenu()">Terms</a>
           </div>
         </div>
       </div>
@@ -1216,11 +1181,120 @@
       </section>
     </main>
 
+    <section class="info-section" id="about">
+      <div class="section-heading"><div><h2>About LIDI</h2></div></div>
+      <div class="card info-card">
+        <p>LIDI is a social intelligence platform for on-chain traders. Our job is simple: show you who moves first, so you can catch momentum before it shows up everywhere else.</p>
+
+        <h3>The problem</h3>
+        <p>By the time a token is trending on a chart or all over social media, the early movers have already taken their position. The real edge isn't the price chart — it's knowing which wallets acted before the crowd did.</p>
+
+        <h3>What LIDI does</h3>
+        <p><strong>Trending Tokens</strong> surfaces memecoins gaining volume and holders in real time. <strong>Smart Wallets</strong> ranks addresses by track record, so you can see who's consistently early and profitable. <strong>Live Activity</strong> streams on-chain transactions as they happen. <strong>Leaderboard</strong> ranks the best-performing traders over time. <strong>Follow & Alerts</strong> lets you track specific wallets and get notified the moment they act.</p>
+
+        <h3>How we're building it</h3>
+        <p>LIDI is being built in stages, from the ground up:</p>
+        <p>
+          <strong>V1 — Discovery:</strong> tokens, wallets, and live activity.<br>
+          <strong>V2 — Social:</strong> follow, profiles, and leaderboards.<br>
+          <strong>V3 — Intelligence:</strong> the LIDI Score and smart alerts.<br>
+          <strong>V4 — AI:</strong> automated analysis that surfaces opportunities for you.<br>
+          <strong>V5 — Copy Trading:</strong> follow a trader's strategy directly.
+        </p>
+
+        <h3>Built on Robinhood Chain</h3>
+        <p>LIDI reads directly from Robinhood Chain, indexing wallet activity and token movement so the data you see reflects what's actually happening on-chain — not a delayed or curated feed.</p>
+
+        <p><em>LIDI is under active development. Product details and figures shown across the site will evolve as new features roll out.</em></p>
+      </div>
+    </section>
+
+    <section class="info-section" id="contact">
+      <div class="section-heading"><div><h2>Contact</h2></div></div>
+      <div class="card info-card">
+        <p>Have a question, feedback, a bug to report, or a partnership idea? We'd like to hear from you.</p>
+
+        <h3>General inquiries</h3>
+        <p><a href="mailto:hello@lidi.io">hello@lidi.io</a></p>
+
+        <h3>Support</h3>
+        <p><a href="mailto:support@lidi.io">support@lidi.io</a> — for issues with the app, wallet connections, or data accuracy.</p>
+
+        <h3>Partnerships & press</h3>
+        <p><a href="mailto:partners@lidi.io">partners@lidi.io</a></p>
+
+        <h3>Social</h3>
+        <p>Follow <strong>@LIDI</strong> on X for updates, or reach out there directly for the fastest response.</p>
+
+        <p><em>We typically respond within 1–2 business days.</em></p>
+      </div>
+    </section>
+
+    <section class="info-section" id="privacy">
+      <div class="section-heading"><div><h2>Privacy Policy</h2></div></div>
+      <div class="card info-card">
+        <p>Last updated: 2026. This Privacy Policy explains how LIDI handles information when you use the site.</p>
+
+        <h3>1. On-chain data</h3>
+        <p>LIDI displays publicly available on-chain data — wallet addresses, balances, and transactions that are already visible on Robinhood Chain. This data is not private; we index and organize it, but we don't control or own it.</p>
+
+        <h3>2. Wallet connections</h3>
+        <p>If you connect a wallet, we use only your public address to personalize your view — for example, to save which wallets you follow and to show relevant alerts. LIDI never asks for, transmits, or stores your private keys or seed phrase, under any circumstance.</p>
+
+        <h3>3. Information we collect</h3>
+        <p>We may collect basic usage data (such as pages visited or features used) to understand how LIDI is used and to improve it. We do not sell personal data to third parties.</p>
+
+        <h3>4. Cookies & local storage</h3>
+        <p>LIDI may use local storage in your browser to remember preferences like followed wallets or active tabs. This stays on your device unless you're signed in and syncing across devices.</p>
+
+        <h3>5. Third-party services</h3>
+        <p>LIDI may rely on third-party infrastructure (such as blockchain indexers or analytics providers) to operate. These providers only receive the minimum data needed to function.</p>
+
+        <h3>6. Changes to this policy</h3>
+        <p>As LIDI evolves, this policy will be updated to reflect real data practices, and material changes will be communicated clearly.</p>
+
+        <h3>7. Contact</h3>
+        <p>Questions about this policy can be sent to <a href="mailto:hello@lidi.io">hello@lidi.io</a>.</p>
+
+        <p><em>This policy is reviewed periodically as LIDI's products and data practices evolve.</em></p>
+      </div>
+    </section>
+
+    <section class="info-section" id="terms">
+      <div class="section-heading"><div><h2>Terms of Service</h2></div></div>
+      <div class="card info-card">
+        <p>Last updated: 2026. By accessing or using LIDI, you agree to the following terms.</p>
+
+        <h3>1. Not financial advice</h3>
+        <p>LIDI surfaces on-chain activity, wallet performance, and market trends for informational purposes only. Nothing on this site constitutes financial, investment, or trading advice, and no content should be interpreted as a recommendation to buy or sell any asset.</p>
+
+        <h3>2. No guarantee of results</h3>
+        <p>Past performance shown for any wallet, trader, or token — including PnL, win rate, or leaderboard ranking — is historical and does not guarantee future results. Cryptocurrency markets are highly volatile and speculative.</p>
+
+        <h3>3. Your responsibility</h3>
+        <p>You are solely responsible for your own trading and investment decisions, including any risk taken from following wallets, tokens, or strategies shown on LIDI. Always do your own research.</p>
+
+        <h3>4. Wallet connections</h3>
+        <p>If you choose to connect a wallet, you do so at your own discretion. LIDI will never request your private keys or seed phrase, and you should never share them with anyone claiming to represent LIDI.</p>
+
+        <h3>5. Acceptable use</h3>
+        <p>You agree not to misuse LIDI — including attempting to disrupt the service, scrape data at abusive scale, or use the platform for unlawful purposes.</p>
+
+        <h3>6. Limitation of liability</h3>
+        <p>LIDI is provided "as is" without warranties of any kind. To the fullest extent permitted by law, LIDI is not liable for any losses arising from the use of the platform or reliance on the data it displays.</p>
+
+        <h3>7. Changes to these terms</h3>
+        <p>These terms may be updated as LIDI develops. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
+
+        <p><em>Figures shown across the site may include illustrative or sample data during ongoing development and do not always reflect real-time market activity.</em></p>
+      </div>
+    </section>
+
     <footer class="site-footer">
       <div class="footer-top">
         <div class="footer-brand">
           <a href="#" class="brand">
-            <img src="lidi-logo.png" alt="LIDI logo">
+            <img src="lidi-logo-icon.png" alt="LIDI logo">
             <span class="wordmark">LID<span class="wm-i">i</span></span>
           </a>
           <p>Social intelligence for on-chain traders. See who moves first.</p>
@@ -1239,10 +1313,10 @@
 
         <div class="footer-col">
           <h4>Company</h4>
-          <a href="javascript:void(0)" onclick="openModal('about')">About</a>
-          <a href="javascript:void(0)" onclick="openModal('contact')">Contact</a>
-          <a href="javascript:void(0)" onclick="openModal('privacy')">Privacy</a>
-          <a href="javascript:void(0)" onclick="openModal('terms')">Terms</a>
+          <a href="#about">About</a>
+          <a href="#contact">Contact</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#terms">Terms</a>
         </div>
       </div>
 
@@ -1251,16 +1325,6 @@
       </div>
     </footer>
 
-  </div>
-
-  <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
-    <div class="modal-box">
-      <div class="modal-head">
-        <span id="modalTitle"></span>
-        <button onclick="closeModal()" aria-label="Close">×</button>
-      </div>
-      <div class="modal-body" id="modalBody"></div>
-    </div>
   </div>
 
   <script>
@@ -1344,131 +1408,6 @@
       if (!panel.contains(e.target) && !btn.contains(e.target)) {
         panel.classList.remove("open");
       }
-    });
-
-    // ---- Company modals ----
-    const modalContent = {
-      about: {
-        title: "About LIDI",
-        body: `
-          <p>LIDI is a social intelligence platform for on-chain traders. Our job is simple: show you who moves first, so you can catch momentum before it shows up everywhere else.</p>
-
-          <h3>The problem</h3>
-          <p>By the time a token is trending on a chart or all over social media, the early movers have already taken their position. The real edge isn't the price chart — it's knowing which wallets acted before the crowd did.</p>
-
-          <h3>What LIDI does</h3>
-          <p><strong>Trending Tokens</strong> surfaces memecoins gaining volume and holders in real time. <strong>Smart Wallets</strong> ranks addresses by track record, so you can see who's consistently early and profitable. <strong>Live Activity</strong> streams on-chain transactions as they happen. <strong>Leaderboard</strong> ranks the best-performing traders over time. <strong>Follow & Alerts</strong> lets you track specific wallets and get notified the moment they act.</p>
-
-          <h3>How we're building it</h3>
-          <p>LIDI is being built in stages, from the ground up:</p>
-          <p>
-            <strong>V1 — Discovery:</strong> tokens, wallets, and live activity.<br>
-            <strong>V2 — Social:</strong> follow, profiles, and leaderboards.<br>
-            <strong>V3 — Intelligence:</strong> the LIDI Score and smart alerts.<br>
-            <strong>V4 — AI:</strong> automated analysis that surfaces opportunities for you.<br>
-            <strong>V5 — Copy Trading:</strong> follow a trader's strategy directly.
-          </p>
-
-          <h3>Built on Robinhood Chain</h3>
-          <p>LIDI reads directly from Robinhood Chain, indexing wallet activity and token movement so the data you see reflects what's actually happening on-chain — not a delayed or curated feed.</p>
-
-          <p><em>LIDI is under active development. Product details and figures shown across the site will evolve as new features roll out.</em></p>
-        `
-      },
-      contact: {
-        title: "Contact",
-        body: `
-          <p>Have a question, feedback, a bug to report, or a partnership idea? We'd like to hear from you.</p>
-
-          <h3>General inquiries</h3>
-          <p><a href="mailto:hello@lidi.io">hello@lidi.io</a></p>
-
-          <h3>Support</h3>
-          <p><a href="mailto:support@lidi.io">support@lidi.io</a> — for issues with the app, wallet connections, or data accuracy.</p>
-
-          <h3>Partnerships & press</h3>
-          <p><a href="mailto:partners@lidi.io">partners@lidi.io</a></p>
-
-          <h3>Social</h3>
-          <p>Follow <strong>@LIDI</strong> on X for updates, or reach out there directly for the fastest response.</p>
-
-          <p><em>We typically respond within 1–2 business days.</em></p>
-        `
-      },
-      privacy: {
-        title: "Privacy Policy",
-        body: `
-          <p>Last updated: 2026. This Privacy Policy explains how LIDI handles information when you use the site.</p>
-
-          <h3>1. On-chain data</h3>
-          <p>LIDI displays publicly available on-chain data — wallet addresses, balances, and transactions that are already visible on Robinhood Chain. This data is not private; we index and organize it, but we don't control or own it.</p>
-
-          <h3>2. Wallet connections</h3>
-          <p>If you connect a wallet, we use only your public address to personalize your view — for example, to save which wallets you follow and to show relevant alerts. LIDI never asks for, transmits, or stores your private keys or seed phrase, under any circumstance.</p>
-
-          <h3>3. Information we collect</h3>
-          <p>We may collect basic usage data (such as pages visited or features used) to understand how LIDI is used and to improve it. We do not sell personal data to third parties.</p>
-
-          <h3>4. Cookies & local storage</h3>
-          <p>LIDI may use local storage in your browser to remember preferences like followed wallets or active tabs. This stays on your device unless you're signed in and syncing across devices.</p>
-
-          <h3>5. Third-party services</h3>
-          <p>LIDI may rely on third-party infrastructure (such as blockchain indexers or analytics providers) to operate. These providers only receive the minimum data needed to function.</p>
-
-          <h3>6. Changes to this policy</h3>
-          <p>As LIDI evolves, this policy will be updated to reflect real data practices, and material changes will be communicated clearly.</p>
-
-          <h3>7. Contact</h3>
-          <p>Questions about this policy can be sent to <a href="mailto:hello@lidi.io">hello@lidi.io</a>.</p>
-
-          <p><em>This policy is reviewed periodically as LIDI's products and data practices evolve.</em></p>
-        `
-      },
-      terms: {
-        title: "Terms of Service",
-        body: `
-          <p>Last updated: 2026. By accessing or using LIDI, you agree to the following terms.</p>
-
-          <h3>1. Not financial advice</h3>
-          <p>LIDI surfaces on-chain activity, wallet performance, and market trends for informational purposes only. Nothing on this site constitutes financial, investment, or trading advice, and no content should be interpreted as a recommendation to buy or sell any asset.</p>
-
-          <h3>2. No guarantee of results</h3>
-          <p>Past performance shown for any wallet, trader, or token — including PnL, win rate, or leaderboard ranking — is historical and does not guarantee future results. Cryptocurrency markets are highly volatile and speculative.</p>
-
-          <h3>3. Your responsibility</h3>
-          <p>You are solely responsible for your own trading and investment decisions, including any risk taken from following wallets, tokens, or strategies shown on LIDI. Always do your own research.</p>
-
-          <h3>4. Wallet connections</h3>
-          <p>If you choose to connect a wallet, you do so at your own discretion. LIDI will never request your private keys or seed phrase, and you should never share them with anyone claiming to represent LIDI.</p>
-
-          <h3>5. Acceptable use</h3>
-          <p>You agree not to misuse LIDI — including attempting to disrupt the service, scrape data at abusive scale, or use the platform for unlawful purposes.</p>
-
-          <h3>6. Limitation of liability</h3>
-          <p>LIDI is provided "as is" without warranties of any kind. To the fullest extent permitted by law, LIDI is not liable for any losses arising from the use of the platform or reliance on the data it displays.</p>
-
-          <h3>7. Changes to these terms</h3>
-          <p>These terms may be updated as LIDI develops. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
-
-          <p><em>Figures shown across the site may include illustrative or sample data during ongoing development and do not always reflect real-time market activity.</em></p>
-        `
-      }
-    };
-
-    function openModal(key) {
-      const data = modalContent[key];
-      if (!data) return;
-      document.getElementById("modalTitle").textContent = data.title;
-      document.getElementById("modalBody").innerHTML = data.body;
-      document.getElementById("modalOverlay").classList.add("open");
-    }
-
-    function closeModal() {
-      document.getElementById("modalOverlay").classList.remove("open");
-    }
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModal();
     });
 
     function goToTab(index) {
