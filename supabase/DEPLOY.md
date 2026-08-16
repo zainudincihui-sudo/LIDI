@@ -1,42 +1,54 @@
 # Deploying `sync-tokens`
 
-This function could not be deployed or run from the build environment that
-wrote it — outbound network access to `*.supabase.co`, `api.supabase.com`,
-and `robinhoodchain.blockscout.com` is blocked by that sandbox's egress
-policy (confirmed via direct 403s on all three hosts). Everything below is
-written but unverified against the live project. Run these steps yourself,
-or in a session that has network access.
+## Recommended: GitHub Actions
 
-## 1. Install the CLI and link the project
+The Claude Code sandbox this project is normally developed in has an egress
+policy that blocks `*.supabase.co`, `api.supabase.com`, and
+`*.blockscout.com` (confirmed via direct 403s from the proxy on all three,
+across two separate sessions). GitHub Actions runners aren't behind that
+policy, so `.github/workflows/deploy-sync-tokens.yml` runs the whole deploy
+there instead:
+
+1. In the repo, go to **Settings → Secrets and variables → Actions** and add
+   a secret named `SUPABASE_ACCESS_TOKEN` with a Supabase personal access
+   token (Dashboard → Account → Access Tokens). Never commit this token.
+2. Go to **Actions → Deploy sync-tokens to Supabase → Run workflow**.
+
+The workflow links the project, resolves the project's `service_role` key
+from the Management API, upserts it into Vault as
+`sync_tokens_service_role_key` (so the pg_cron schedule can authenticate),
+pushes migrations, deploys the function with `--use-api` (no Docker needed),
+invokes it once with `curl`, and reads back the top 10 rows of `tokens` by
+volume. All of that is uploaded as a `sync-tokens-deploy-results` artifact
+on the run, and shows up in the step logs too.
+
+## Manual (from a machine with real internet access)
 
 ```bash
 npm install -g supabase
 supabase login   # or: export SUPABASE_ACCESS_TOKEN=<your personal access token>
 supabase link --project-ref ruatieohvdxjnmcfhqwh
+supabase db push
+supabase functions deploy sync-tokens --project-ref ruatieohvdxjnmcfhqwh --use-api
 ```
-
-## 2. Store the service role key in Vault
 
 `sync-tokens` is invoked on a schedule by pg_cron, which calls it over HTTP
 and needs the project's **service role key** (Project Settings → API) to
 authenticate. Run this once in the SQL editor (Dashboard → SQL Editor),
-replacing the placeholder:
+replacing the placeholder, before the cron job's first run:
 
 ```sql
 select vault.create_secret('<SERVICE_ROLE_KEY>', 'sync_tokens_service_role_key');
 ```
 
-## 3. Apply migrations and deploy the function
+Then test it directly (`supabase functions invoke` was removed from the CLI
+— as of v2.114.0 `supabase functions` only has `list`/`delete`/`download`/
+`deploy`/`new`/`serve`, so hit the deployed endpoint with `curl` instead):
 
 ```bash
-supabase db push          # adds the unique constraint + pg_cron schedule
-supabase functions deploy sync-tokens
-```
-
-## 4. Run it once manually and check the result
-
-```bash
-supabase functions invoke sync-tokens --project-ref ruatieohvdxjnmcfhqwh
+curl -X POST "https://ruatieohvdxjnmcfhqwh.supabase.co/functions/v1/sync-tokens" \
+  -H "Authorization: Bearer <SERVICE_ROLE_KEY>" \
+  -H "Content-Type: application/json"
 ```
 
 It returns a JSON summary (`fetched`, `upserted`, `skipped_missing_address`,
@@ -59,16 +71,16 @@ function looks for a handful of likely field names anyway
 (`exchange_rate_percent_change`, `price_change_24h`,
 `price_change_percentage_24h`, `percent_change_24h`) and falls back to `0`
 if none are present, flagging that in its response
-(`price_change_24h_field_found: false`). If step 4's output shows `false`,
+(`price_change_24h_field_found: false`). If the response shows `false`,
 that confirms the field doesn't exist on this instance and `0` is what's
 being written for every row until a price-history source is added.
 
 ## Field-name fallbacks
 
 The task description named `address_hash` and `holders_count` as the
-Blockscout field names, but the CLI in this build environment couldn't
-reach the API to confirm — some Blockscout deployments use `address`/
-`holders` instead. The function tries both (`address_hash` → `address`,
-`holders_count` → `holders`) so it works either way; the `skipped_missing_address`
-count in its response will be non-zero if neither address field matches,
-which would mean the schema differs further and needs a look.
+Blockscout field names; some Blockscout deployments use `address`/`holders`
+instead. The function tries both (`address_hash` → `address`,
+`holders_count` → `holders`) so it works either way; the
+`skipped_missing_address` count in its response will be non-zero if neither
+address field matches, which would mean the schema differs further and
+needs a look.
