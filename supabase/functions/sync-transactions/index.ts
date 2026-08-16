@@ -1,10 +1,11 @@
 // sync-transactions
 //
-// For every token in the `tokens` table, pulls its most recent transfers
-// from the Robinhood Chain Blockscout explorer
-// (/api/v2/tokens/{address_hash}/transfers, public API, no key needed),
-// makes sure the wallets involved exist in the `wallets` table, and inserts
-// the transfers into `transactions`.
+// For the most active tokens in the `tokens` table (top `TOKENS_PER_RUN` by
+// volume_24h -- see the comment by that constant for why it's capped),
+// pulls their most recent transfers from the Robinhood Chain Blockscout
+// explorer (/api/v2/tokens/{address_hash}/transfers, public API, no key
+// needed), makes sure the wallets involved exist in the `wallets` table,
+// and inserts the transfers into `transactions`.
 //
 // Buy/sell direction: Blockscout's transfers endpoint doesn't label a
 // transfer as a trade, so direction is inferred from whether the transfer
@@ -34,8 +35,13 @@ const BLOCKSCOUT_BASE_URL = "https://robinhoodchain.blockscout.com";
 const ADDRESS_FIELDS = ["address_hash", "address", "hash"];
 const TX_HASH_FIELDS = ["transaction_hash", "tx_hash", "hash"];
 
-const MAX_PAGES_PER_TOKEN = 3; // "latest transfers", not full history
-const MAX_TOKENS_PER_RUN = 300; // safety cap so a huge tokens table can't run forever
+const MAX_PAGES_PER_TOKEN = 2; // "latest transfers", not full history
+// A live run against the full ~342-row tokens table hit
+// WORKER_RESOURCE_LIMIT (the Edge Function ran out of compute mid-invoke).
+// Processing every token every 5 minutes was never going to fit in one
+// invoke anyway, so each run is limited to the most active tokens instead
+// -- top by volume_24h, which is also where transfer activity actually is.
+const TOKENS_PER_RUN = 25;
 const BATCH_SIZE = 500;
 
 interface BlockscoutItem {
@@ -143,38 +149,28 @@ Deno.serve(async (_req) => {
     }
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // 1. Load every known token, paging past PostgREST's default row cap.
-    const tokens: TokenRow[] = [];
-    {
-      const pageSize = 1000;
-      let from = 0;
-      while (true) {
-        const { data, error } = await supabase
-          .from("tokens")
-          .select("id,contract_address,price_usd")
-          .range(from, from + pageSize - 1);
-        if (error) throw new Error(`Failed to load tokens: ${error.message}`);
-        if (!data || data.length === 0) break;
-        for (const row of data) {
-          tokens.push({
-            id: row.id as string,
-            contract_address: row.contract_address as string,
-            price_usd: toNumber(row.price_usd),
-          });
-        }
-        if (data.length < pageSize) break;
-        from += pageSize;
-      }
-    }
+    // 1. Load the most active tokens (top by volume_24h) -- see the
+    // TOKENS_PER_RUN comment above for why this is capped instead of
+    // loading the whole tokens table.
+    const { data: tokenRows, error: tokensError } = await supabase
+      .from("tokens")
+      .select("id,contract_address,price_usd")
+      .order("volume_24h", { ascending: false })
+      .limit(TOKENS_PER_RUN);
+    if (tokensError) throw new Error(`Failed to load tokens: ${tokensError.message}`);
 
-    const tokensToProcess = tokens.slice(0, MAX_TOKENS_PER_RUN);
+    const tokens: TokenRow[] = (tokenRows ?? []).map((row) => ({
+      id: row.id as string,
+      contract_address: row.contract_address as string,
+      price_usd: toNumber(row.price_usd),
+    }));
 
     // 2. Fetch latest transfers per token.
     let transfersFetched = 0;
     let tokenFetchErrors = 0;
     const perTokenTransfers: { token: TokenRow; items: BlockscoutItem[] }[] = [];
 
-    for (const token of tokensToProcess) {
+    for (const token of tokens) {
       try {
         const { items } = await fetchTransfersForToken(token.contract_address);
         transfersFetched += items.length;
@@ -302,8 +298,8 @@ Deno.serve(async (_req) => {
 
     const summary = {
       ok: true,
-      tokens_known: tokens.length,
-      tokens_processed: tokensToProcess.length,
+      tokens_processed: tokens.length,
+      tokens_per_run_cap: TOKENS_PER_RUN,
       token_fetch_errors: tokenFetchErrors,
       transfers_fetched: transfersFetched,
       wallets_seen: addresses.length,
