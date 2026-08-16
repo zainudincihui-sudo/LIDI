@@ -118,7 +118,12 @@ Deno.serve(async (_req) => {
 
     let priceChangeFieldFound = false;
     let skipped = 0;
-    const rows: TokenRow[] = [];
+    // Keyed by lowercased address: a live run showed Blockscout can return
+    // the same contract more than once (pagination overlap, or the same
+    // address with different casing), which makes a single upsert batch
+    // fail with "ON CONFLICT DO UPDATE command cannot affect row a second
+    // time". Last occurrence wins.
+    const rowsByAddress = new Map<string, TokenRow>();
 
     for (const item of items) {
       const address = firstDefined(item, ADDRESS_FIELDS);
@@ -130,7 +135,7 @@ Deno.serve(async (_req) => {
       const priceChangeRaw = firstDefined(item, PRICE_CHANGE_FIELDS);
       if (priceChangeRaw !== undefined) priceChangeFieldFound = true;
 
-      rows.push({
+      rowsByAddress.set(address.toLowerCase(), {
         contract_address: address,
         name: typeof item.name === "string" ? item.name : "",
         ticker: typeof item.symbol === "string" ? item.symbol : "",
@@ -140,6 +145,9 @@ Deno.serve(async (_req) => {
         price_change_24h: toNumber(priceChangeRaw), // 0 if the field doesn't exist
       });
     }
+
+    const rows = Array.from(rowsByAddress.values());
+    const duplicatesSkipped = items.length - skipped - rows.length;
 
     let upserted = 0;
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
@@ -157,6 +165,7 @@ Deno.serve(async (_req) => {
       pages,
       upserted,
       skipped_missing_address: skipped,
+      duplicates_skipped: duplicatesSkipped,
       price_change_24h_field_found: priceChangeFieldFound,
       note: priceChangeFieldFound
         ? undefined
