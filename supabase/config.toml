@@ -1,0 +1,4 @@
+project_id = "lidi"
+
+[functions.sync-tokens]
+verify_jwt = true
