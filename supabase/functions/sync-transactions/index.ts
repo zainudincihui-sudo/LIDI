@@ -1,11 +1,16 @@
 // sync-transactions
 //
-// For the most active tokens in the `tokens` table (top `TOKENS_PER_RUN` by
-// volume_24h -- see the comment by that constant for why it's capped),
-// pulls their most recent transfers from the Robinhood Chain Blockscout
-// explorer (/api/v2/tokens/{address_hash}/transfers, public API, no key
-// needed), makes sure the wallets involved exist in the `wallets` table,
-// and inserts the transfers into `transactions`.
+// Each invoke processes a small batch of tokens (`TOKENS_PER_RUN`) from the
+// `tokens` table -- see the comment by that constant for why it's kept
+// small -- picking up where the previous invoke left off via a cursor
+// stored in `sync_cursors`, and wrapping back to the start once it runs
+// off the end. Since this runs on a 5-minute cron schedule, every token
+// still gets covered eventually even though no single invoke looks at more
+// than a handful. For each token in the batch, it pulls the most recent
+// transfers from the Robinhood Chain Blockscout explorer
+// (/api/v2/tokens/{address_hash}/transfers, public API, no key needed),
+// makes sure the wallets involved exist in the `wallets` table, and
+// inserts the transfers into `transactions`.
 //
 // Buy/sell direction: Blockscout's transfers endpoint doesn't label a
 // transfer as a trade, so direction is inferred from whether the transfer
@@ -36,12 +41,14 @@ const ADDRESS_FIELDS = ["address_hash", "address", "hash"];
 const TX_HASH_FIELDS = ["transaction_hash", "tx_hash", "hash"];
 
 const MAX_PAGES_PER_TOKEN = 2; // "latest transfers", not full history
-// A live run against the full ~342-row tokens table hit
-// WORKER_RESOURCE_LIMIT (the Edge Function ran out of compute mid-invoke).
-// Processing every token every 5 minutes was never going to fit in one
-// invoke anyway, so each run is limited to the most active tokens instead
-// -- top by volume_24h, which is also where transfer activity actually is.
-const TOKENS_PER_RUN = 25;
+// Live runs against the full ~342-row tokens table hit WORKER_RESOURCE_LIMIT
+// (the Edge Function ran out of compute mid-invoke) even after capping to
+// the top 25 by volume -- the free-tier Edge Function compute budget per
+// invoke is the real constraint, not just row count. Each invoke now only
+// looks at a handful of tokens, tracked via a cursor (see `sync_cursors`
+// below) so the next invoke continues from there instead of starting over.
+const TOKENS_PER_RUN = 5;
+const CURSOR_NAME = "sync-transactions";
 const BATCH_SIZE = 500;
 
 interface BlockscoutItem {
@@ -138,6 +145,65 @@ async function fetchTransfersForToken(
   return { items, pages };
 }
 
+// deno-lint-ignore no-explicit-any
+async function loadCursor(supabase: any): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("sync_cursors")
+    .select("last_token_id")
+    .eq("cursor_name", CURSOR_NAME)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load sync cursor: ${error.message}`);
+  return (data?.last_token_id as string | undefined) ?? null;
+}
+
+// deno-lint-ignore no-explicit-any
+async function saveCursor(supabase: any, lastTokenId: string): Promise<void> {
+  const { error } = await supabase
+    .from("sync_cursors")
+    .upsert(
+      { cursor_name: CURSOR_NAME, last_token_id: lastTokenId, updated_at: new Date().toISOString() },
+      { onConflict: "cursor_name" },
+    );
+  if (error) throw new Error(`Failed to save sync cursor: ${error.message}`);
+}
+
+// Fetches the next TOKENS_PER_RUN tokens after `afterId` (ordered by id for
+// a stable, deterministic traversal), wrapping around to the start of the
+// table if fewer than TOKENS_PER_RUN remain past that point.
+// deno-lint-ignore no-explicit-any
+async function loadNextTokenBatch(
+  supabase: any,
+  afterId: string | null,
+): Promise<{ id: string; contract_address: string; price_usd: unknown }[]> {
+  let query = supabase
+    .from("tokens")
+    .select("id,contract_address,price_usd")
+    .order("id", { ascending: true })
+    .limit(TOKENS_PER_RUN);
+  if (afterId) query = query.gt("id", afterId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to load tokens: ${error.message}`);
+  let rows = data ?? [];
+
+  if (afterId && rows.length < TOKENS_PER_RUN) {
+    const remaining = TOKENS_PER_RUN - rows.length;
+    const seenIds = rows.map((row: { id: string }) => row.id);
+    let wrapQuery = supabase
+      .from("tokens")
+      .select("id,contract_address,price_usd")
+      .order("id", { ascending: true })
+      .limit(remaining);
+    if (seenIds.length > 0) wrapQuery = wrapQuery.not("id", "in", `(${seenIds.join(",")})`);
+
+    const { data: wrapData, error: wrapError } = await wrapQuery;
+    if (wrapError) throw new Error(`Failed to load wrap-around tokens: ${wrapError.message}`);
+    rows = rows.concat(wrapData ?? []);
+  }
+
+  return rows;
+}
+
 Deno.serve(async (_req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -149,17 +215,12 @@ Deno.serve(async (_req) => {
     }
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // 1. Load the most active tokens (top by volume_24h) -- see the
-    // TOKENS_PER_RUN comment above for why this is capped instead of
-    // loading the whole tokens table.
-    const { data: tokenRows, error: tokensError } = await supabase
-      .from("tokens")
-      .select("id,contract_address,price_usd")
-      .order("volume_24h", { ascending: false })
-      .limit(TOKENS_PER_RUN);
-    if (tokensError) throw new Error(`Failed to load tokens: ${tokensError.message}`);
+    // 1. Load this run's batch of tokens, continuing from the cursor left
+    // by the previous invoke (see the TOKENS_PER_RUN comment above).
+    const cursorBefore = await loadCursor(supabase);
+    const tokenRows = await loadNextTokenBatch(supabase, cursorBefore);
 
-    const tokens: TokenRow[] = (tokenRows ?? []).map((row) => ({
+    const tokens: TokenRow[] = tokenRows.map((row) => ({
       id: row.id as string,
       contract_address: row.contract_address as string,
       price_usd: toNumber(row.price_usd),
@@ -296,8 +357,19 @@ Deno.serve(async (_req) => {
       upserted += batch.length;
     }
 
+    // Advance the cursor only after the whole run succeeds, so a failure
+    // partway through (e.g. a Supabase write error) retries the same batch
+    // next invoke instead of silently skipping it.
+    let cursorAfter = cursorBefore;
+    if (tokens.length > 0) {
+      cursorAfter = tokens[tokens.length - 1].id;
+      await saveCursor(supabase, cursorAfter);
+    }
+
     const summary = {
       ok: true,
+      cursor_before: cursorBefore,
+      cursor_after: cursorAfter,
       tokens_processed: tokens.length,
       tokens_per_run_cap: TOKENS_PER_RUN,
       token_fetch_errors: tokenFetchErrors,
