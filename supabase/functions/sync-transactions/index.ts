@@ -277,8 +277,6 @@ Deno.serve(async (_req) => {
     }
 
     // 6. Classify each transfer and build transaction rows.
-    let buyCount = 0;
-    let sellCount = 0;
     let unclassifiedSkipped = 0;
     let missingWalletSkipped = 0;
     let missingTxHashSkipped = 0;
@@ -331,28 +329,42 @@ Deno.serve(async (_req) => {
           tx_hash: txHash,
           occurred_at: occurredAt,
         });
-
-        if (type === "sell") sellCount++;
-        else buyCount++;
       }
     }
 
-    // Same-batch duplicates (overlapping pages, the same transfer touching
-    // more than one page boundary) would otherwise trip Postgres's "ON
-    // CONFLICT DO UPDATE command cannot affect row a second time" -- keyed
-    // to match the (tx_hash, token_id, wallet_id) unique constraint.
-    const rowsByKey = new Map<string, TransactionRow>();
+    // `transactions.tx_hash` is unique table-wide (one row per transaction
+    // hash, not per token/wallet) -- confirmed by a live run that hit
+    // "duplicate key value violates unique constraint
+    // transactions_tx_hash_key" even though every row it sent had a
+    // distinct (tx_hash, token_id, wallet_id) tuple. Dedupe on tx_hash
+    // alone to match: same-batch duplicates (overlapping pages, or a
+    // single transaction moving more than one tracked token) collapse to
+    // one row -- last occurrence wins -- instead of tripping Postgres's
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time".
+    const rowsByTxHash = new Map<string, TransactionRow>();
     for (const row of txRows) {
-      rowsByKey.set(`${row.tx_hash}|${row.token_id}|${row.wallet_id}`, row);
+      rowsByTxHash.set(row.tx_hash, row);
     }
-    const dedupedRows = Array.from(rowsByKey.values());
+    const dedupedRows = Array.from(rowsByTxHash.values());
+    const duplicateTxHashSkipped = txRows.length - dedupedRows.length;
 
+    let buyCount = 0;
+    let sellCount = 0;
+    for (const row of dedupedRows) {
+      if (row.type === "sell") sellCount++;
+      else buyCount++;
+    }
+
+    // Already-seen tx_hash values (from an earlier invoke, or another
+    // token's transfer list overlapping this one) are expected on every
+    // run -- ignoreDuplicates makes that a quiet no-op (ON CONFLICT DO
+    // NOTHING) instead of failing the whole batch.
     let upserted = 0;
     for (let i = 0; i < dedupedRows.length; i += BATCH_SIZE) {
       const batch = dedupedRows.slice(i, i + BATCH_SIZE);
       const { error } = await supabase
         .from("transactions")
-        .upsert(batch, { onConflict: "tx_hash,token_id,wallet_id", ignoreDuplicates: true });
+        .upsert(batch, { onConflict: "tx_hash", ignoreDuplicates: true });
       if (error) throw new Error(`Transaction upsert failed: ${error.message}`);
       upserted += batch.length;
     }
@@ -380,6 +392,7 @@ Deno.serve(async (_req) => {
       transactions_unclassified_skipped: unclassifiedSkipped,
       transactions_missing_wallet_skipped: missingWalletSkipped,
       transactions_missing_tx_hash_skipped: missingTxHashSkipped,
+      transactions_duplicate_tx_hash_skipped: duplicateTxHashSkipped,
       transactions_upserted: upserted,
       note:
         "Buy/sell is inferred from the Blockscout `is_contract` flag on the transfer counterpart, " +
