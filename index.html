@@ -870,10 +870,6 @@
       overflow: visible;
     }
 
-    .sparkline .spark-line {
-      transition: d .3s ease;
-    }
-
     .sparkline .spark-dot {
       transform-box: fill-box;
       transform-origin: center;
@@ -2043,19 +2039,6 @@
       `;
     }
 
-    // Animasi garis "digambar" pelan-pelan dari kiri ke kanan saat kartu muncul
-    function animateSparklines(container) {
-      const lines = container.querySelectorAll(".spark-line");
-      lines.forEach((line, i) => {
-        const length = line.getTotalLength();
-        line.style.strokeDasharray = length;
-        line.style.strokeDashoffset = length;
-        line.getBoundingClientRect(); // paksa reflow supaya transisi dijalankan
-        line.style.transition = `stroke-dashoffset 1s cubic-bezier(.4,0,.2,1) ${i * 60}ms`;
-        requestAnimationFrame(() => { line.style.strokeDashoffset = "0"; });
-      });
-    }
-
     async function loadTrendingTokens() {
       const grid = document.getElementById("tokenGrid");
       const status = document.getElementById("trendingStatus");
@@ -2077,11 +2060,10 @@
 
         grid.innerHTML = data.map(tokenCardHtml).join("");
         grid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
-        animateSparklines(grid);
         status.textContent = "Live from Supabase";
         searchAll();
       } catch (err) {
-        console.error("Failed to load trending tokens:", err);
+        console.error("Failed to load trending tokens:", (err && (err.message || err.details)) || err);
         grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load trending tokens. Please try again later.</div>`;
         status.textContent = "Live data unavailable";
       }
