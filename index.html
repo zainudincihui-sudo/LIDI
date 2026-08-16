@@ -63,6 +63,7 @@
       --gain-bg: #eaf8e8;
       --gain-text: #238c22;
       --loss-text: #d13c3c;
+      --loss-bg: #fbeaea;
       --grid-dot: rgba(17, 21, 28, .07);
       --radius: 20px;
       --shadow: 0 14px 40px rgba(25, 30, 40, .07);
@@ -82,6 +83,7 @@
       --gain-bg: rgba(83, 216, 79, .16);
       --gain-text: #7eea79;
       --loss-text: #ff6b6b;
+      --loss-bg: rgba(255, 107, 107, .16);
       --grid-dot: rgba(241, 243, 247, .05);
       --shadow: 0 14px 40px rgba(0, 0, 0, .35);
       --icon-btn-bg: #1c212e;
@@ -848,6 +850,11 @@
       font-weight: 900;
     }
 
+    .gain.loss {
+      color: var(--loss-text);
+      background: var(--loss-bg);
+    }
+
     .price {
       margin: 19px 0 3px;
       font-size: 28px;
@@ -1314,74 +1321,12 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-flame"/></svg>Trending</h2>
-            <div class="muted">Sample data · live feed coming soon</div>
+            <div class="muted" id="trendingStatus">Loading live data…</div>
           </div>
           <div class="muted">24h</div>
         </div>
 
-        <div class="grid" id="tokenGrid">
-
-          <article class="card token-card" data-search="lidi robinhood">
-            <div class="token-top">
-              <div class="coin">
-                <div class="coin-icon">L</div>
-                <div>
-                  <div class="ticker">$LIDI</div>
-                  <div class="coin-name">LIDI Network</div>
-                </div>
-              </div>
-              <div class="gain">+84.2%</div>
-            </div>
-
-            <div class="price">$0.0842</div>
-            <div class="muted">Volume $1.82M · 3.4K holders</div>
-            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
-              <polygon points="0,28 14,24 28,26 42,16 56,19 70,9 84,12 100,3 100,34 0,34" fill="url(#sparkline-fill)"/>
-              <polyline points="0,28 14,24 28,26 42,16 56,19 70,9 84,12 100,3" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </article>
-
-          <article class="card token-card" data-search="cat meme">
-            <div class="token-top">
-              <div class="coin">
-                <div class="coin-icon">C</div>
-                <div>
-                  <div class="ticker">$CAT</div>
-                  <div class="coin-name">Cat Signal</div>
-                </div>
-              </div>
-              <div class="gain">+47.8%</div>
-            </div>
-
-            <div class="price">$0.0178</div>
-            <div class="muted">Volume $942K · 8.1K holders</div>
-            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
-              <polygon points="0,30 14,29 28,20 42,23 56,14 70,17 84,8 100,10 100,34 0,34" fill="url(#sparkline-fill)"/>
-              <polyline points="0,30 14,29 28,20 42,23 56,14 70,17 84,8 100,10" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </article>
-
-          <article class="card token-card" data-search="frog alpha">
-            <div class="token-top">
-              <div class="coin">
-                <div class="coin-icon">F</div>
-                <div>
-                  <div class="ticker">$FROG</div>
-                  <div class="coin-name">Alpha Frog</div>
-                </div>
-              </div>
-              <div class="gain">+31.6%</div>
-            </div>
-
-            <div class="price">$0.0061</div>
-            <div class="muted">Volume $516K · 2.2K holders</div>
-            <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
-              <polygon points="0,26 14,27 28,22 42,24 56,18 70,20 84,15 100,13 100,34 0,34" fill="url(#sparkline-fill)"/>
-              <polyline points="0,26 14,27 28,22 42,24 56,18 70,20 84,15 100,13" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </article>
-
-        </div>
+        <div class="grid" id="tokenGrid"></div>
         <div class="empty-state" id="emptyTrending">
           <svg class="icon"><use href="#icon-search"/></svg>
           <strong>No tokens found</strong>
@@ -1732,6 +1677,7 @@
     </button>
   </nav>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ---- Theme (light/dark) — dark is the default ----
     let currentTheme = "dark";
@@ -1955,6 +1901,115 @@
         : "";
 
       return { tokenVisible, walletVisible };
+    }
+
+    // ---- Trending Tokens (live from Supabase) ----
+    if (typeof supabase === "undefined") {
+      console.error("Supabase client library failed to load from CDN.");
+      const status = document.getElementById("trendingStatus");
+      if (status) status.textContent = "Live data unavailable";
+      document.getElementById("tokenGrid").innerHTML =
+        '<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn\'t load trending tokens. Please try again later.</div>';
+    } else {
+    const SUPABASE_URL = "https://ruatieohvdxjnmcfhqwh.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_37yjD6rqFM2gNofmzb8RbA_flCxE2H5";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function formatPrice(n) {
+      const num = Number(n) || 0;
+      return "$" + num.toFixed(num >= 1 ? 2 : 4);
+    }
+
+    function formatCompactUsd(n) {
+      const num = Number(n) || 0;
+      if (num >= 1e6) return "$" + (num / 1e6).toFixed(2) + "M";
+      if (num >= 1e3) return "$" + (num / 1e3).toFixed(1) + "K";
+      return "$" + num.toFixed(0);
+    }
+
+    function formatHolders(n) {
+      const num = Number(n) || 0;
+      return num >= 1000 ? (num / 1000).toFixed(1) + "K" : String(num);
+    }
+
+    // No historical price series in the schema — sparkline only signals up/down direction, not real history.
+    function sparklinePoints(isPositive) {
+      return isPositive
+        ? "0,28 14,24 28,26 42,16 56,19 70,9 84,12 100,3"
+        : "0,6 14,10 28,8 42,17 56,14 70,23 84,20 100,29";
+    }
+
+    function tokenCardHtml(token) {
+      const rawTicker = (token.ticker || "?").trim();
+      const ticker = rawTicker.startsWith("$") ? rawTicker : "$" + rawTicker;
+      const name = token.name || rawTicker;
+      const change = Number(token.price_change_24h) || 0;
+      const isLoss = change < 0;
+      const initial = rawTicker.replace(/^\$/, "").charAt(0).toUpperCase() || "?";
+      const points = sparklinePoints(!isLoss);
+      const stroke = isLoss ? "var(--loss-text)" : "var(--green)";
+      const searchTerms = escapeHtml(`${ticker} ${name}`.toLowerCase());
+
+      return `
+        <article class="card token-card" data-search="${searchTerms}">
+          <div class="token-top">
+            <div class="coin">
+              <div class="coin-icon">${escapeHtml(initial)}</div>
+              <div>
+                <div class="ticker">${escapeHtml(ticker)}</div>
+                <div class="coin-name">${escapeHtml(name)}</div>
+              </div>
+            </div>
+            <div class="gain${isLoss ? " loss" : ""}">${isLoss ? "" : "+"}${change.toFixed(1)}%</div>
+          </div>
+
+          <div class="price">${formatPrice(token.price_usd)}</div>
+          <div class="muted">Volume ${formatCompactUsd(token.volume_24h)} · ${formatHolders(token.holder_count)} holders</div>
+          <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
+            <polygon points="${points} 100,34 0,34" fill="url(#sparkline-fill)"/>
+            <polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </article>
+      `;
+    }
+
+    async function loadTrendingTokens() {
+      const grid = document.getElementById("tokenGrid");
+      const status = document.getElementById("trendingStatus");
+
+      try {
+        const { data, error } = await sb
+          .from("tokens")
+          .select("*")
+          .order("price_change_24h", { ascending: false })
+          .limit(12);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No tokens yet.</div>`;
+          status.textContent = "Live from Supabase";
+          return;
+        }
+
+        grid.innerHTML = data.map(tokenCardHtml).join("");
+        grid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+        status.textContent = "Live from Supabase";
+        searchAll();
+      } catch (err) {
+        console.error("Failed to load trending tokens:", err);
+        grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load trending tokens. Please try again later.</div>`;
+        status.textContent = "Live data unavailable";
+      }
+    }
+
+    loadTrendingTokens();
     }
   </script>
 </body>
