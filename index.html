@@ -1368,79 +1368,11 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-eye"/></svg>Smart Wallets</h2>
-            <div class="muted">Wallet performance is demo data</div>
+            <div class="muted" id="walletsStatus">Loading live data…</div>
           </div>
         </div>
 
-        <div class="grid" id="walletGrid">
-
-          <article class="card wallet-card" data-search="alphawalker">
-            <div class="wallet">
-              <div class="avatar">A1</div>
-              <div>
-                <h3>AlphaWalker</h3>
-                <div class="muted">0x7A...91F</div>
-              </div>
-              <button class="follow-btn" onclick="toggleFollow(this, 'AlphaWalker')">+ Follow</button>
-            </div>
-
-            <div class="stats">
-              <div class="stat">
-                <div class="muted">30D PnL</div>
-                <strong class="gradient">+126.4%</strong>
-              </div>
-              <div class="stat">
-                <div class="muted">Win rate</div>
-                <strong>68%</strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="card wallet-card" data-search="signaltwo">
-            <div class="wallet">
-              <div class="avatar">S2</div>
-              <div>
-                <h3>SignalTwo</h3>
-                <div class="muted">0x31...A20</div>
-              </div>
-              <button class="follow-btn" onclick="toggleFollow(this, 'SignalTwo')">+ Follow</button>
-            </div>
-
-            <div class="stats">
-              <div class="stat">
-                <div class="muted">30D PnL</div>
-                <strong class="gradient">+91.8%</strong>
-              </div>
-              <div class="stat">
-                <div class="muted">Win rate</div>
-                <strong>64%</strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="card wallet-card" data-search="degenscout">
-            <div class="wallet">
-              <div class="avatar">D3</div>
-              <div>
-                <h3>DegenScout</h3>
-                <div class="muted">0xC4...7B2</div>
-              </div>
-              <button class="follow-btn" onclick="toggleFollow(this, 'DegenScout')">+ Follow</button>
-            </div>
-
-            <div class="stats">
-              <div class="stat">
-                <div class="muted">30D PnL</div>
-                <strong class="gradient">+73.1%</strong>
-              </div>
-              <div class="stat">
-                <div class="muted">Win rate</div>
-                <strong>61%</strong>
-              </div>
-            </div>
-          </article>
-
-        </div>
+        <div class="grid" id="walletGrid"></div>
         <div class="empty-state" id="emptyWallets">
           <svg class="icon"><use href="#icon-search"/></svg>
           <strong>No wallets found</strong>
@@ -1938,6 +1870,11 @@
       if (status) status.textContent = "Live data unavailable";
       document.getElementById("tokenGrid").innerHTML =
         '<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn\'t load trending tokens. Please try again later.</div>';
+
+      const walletsStatus = document.getElementById("walletsStatus");
+      if (walletsStatus) walletsStatus.textContent = "Live data unavailable";
+      document.getElementById("walletGrid").innerHTML =
+        '<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn\'t load smart wallets. Please try again later.</div>';
     } else {
     const SUPABASE_URL = "https://ruatieohvdxjnmcfhqwh.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_37yjD6rqFM2gNofmzb8RbA_flCxE2H5";
@@ -2070,6 +2007,83 @@
     }
 
     loadTrendingTokens();
+
+    // ---- Smart Wallets (live from Supabase) ----
+    function truncateAddress(address) {
+      const addr = String(address || "");
+      return addr.length > 10 ? `${addr.slice(0, 4)}...${addr.slice(-3)}` : addr;
+    }
+
+    function formatPct(n) {
+      const num = Number(n) || 0;
+      return (num < 0 ? "" : "+") + num.toFixed(1) + "%";
+    }
+
+    function walletCardHtml(wallet) {
+      const label = (wallet.label || truncateAddress(wallet.address) || "Wallet").trim();
+      const initials = label.replace(/^\$/, "").slice(0, 2).toUpperCase() || "??";
+      const pnl = Number(wallet.pnl_30d) || 0;
+      const isLoss = pnl < 0;
+      const winRate = Number(wallet.win_rate) || 0;
+      const searchTerms = escapeHtml(`${label} ${wallet.address || ""}`.toLowerCase());
+      const onclickName = label.replace(/'/g, "\\'");
+
+      return `
+        <article class="card wallet-card" data-search="${searchTerms}">
+          <div class="wallet">
+            <div class="avatar">${escapeHtml(initials)}</div>
+            <div>
+              <h3>${escapeHtml(label)}</h3>
+              <div class="muted">${escapeHtml(truncateAddress(wallet.address))}</div>
+            </div>
+            <button class="follow-btn" onclick="toggleFollow(this, '${onclickName}')">+ Follow</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="muted">30D PnL</div>
+              <strong class="${isLoss ? "" : "gradient"}"${isLoss ? ' style="color:var(--loss-text)"' : ""}>${formatPct(pnl)}</strong>
+            </div>
+            <div class="stat">
+              <div class="muted">Win rate</div>
+              <strong>${winRate.toFixed(0)}%</strong>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    async function loadSmartWallets() {
+      const grid = document.getElementById("walletGrid");
+      const status = document.getElementById("walletsStatus");
+
+      try {
+        const { data, error } = await sb
+          .from("wallets")
+          .select("*")
+          .order("pnl_30d", { ascending: false })
+          .limit(12);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No wallets yet.</div>`;
+          status.textContent = "Live from Supabase";
+          return;
+        }
+
+        grid.innerHTML = data.map(walletCardHtml).join("");
+        grid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+        status.textContent = "Live from Supabase";
+        searchAll();
+      } catch (err) {
+        console.error("Failed to load smart wallets:", (err && (err.message || err.details)) || err);
+        grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load smart wallets. Please try again later.</div>`;
+        status.textContent = "Live data unavailable";
+      }
+    }
+
+    loadSmartWallets();
     }
   </script>
 </body>
