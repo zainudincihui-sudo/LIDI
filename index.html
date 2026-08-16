@@ -1386,52 +1386,11 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-trophy"/></svg>Leaderboard</h2>
-            <div class="muted">Top traders · 30D · demo data</div>
+            <div class="muted" id="leaderboardStatus">Loading live data…</div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="lb-row">
-            <div class="lb-rank">01</div>
-            <div class="avatar">A1</div>
-            <div class="lb-name">
-              <h3>AlphaWalker</h3>
-              <div class="muted">68% win rate · 142 trades</div>
-            </div>
-            <div class="lb-pnl gradient">+126.4%</div>
-            <button class="follow-btn" onclick="toggleFollow(this, 'AlphaWalker')">+ Follow</button>
-          </div>
-          <div class="lb-row">
-            <div class="lb-rank">02</div>
-            <div class="avatar">S2</div>
-            <div class="lb-name">
-              <h3>SignalTwo</h3>
-              <div class="muted">64% win rate · 98 trades</div>
-            </div>
-            <div class="lb-pnl gradient">+91.8%</div>
-            <button class="follow-btn" onclick="toggleFollow(this, 'SignalTwo')">+ Follow</button>
-          </div>
-          <div class="lb-row">
-            <div class="lb-rank">03</div>
-            <div class="avatar">D3</div>
-            <div class="lb-name">
-              <h3>DegenScout</h3>
-              <div class="muted">61% win rate · 205 trades</div>
-            </div>
-            <div class="lb-pnl gradient">+73.1%</div>
-            <button class="follow-btn" onclick="toggleFollow(this, 'DegenScout')">+ Follow</button>
-          </div>
-          <div class="lb-row">
-            <div class="lb-rank">04</div>
-            <div class="avatar">N4</div>
-            <div class="lb-name">
-              <h3>NightOwl</h3>
-              <div class="muted">57% win rate · 63 trades</div>
-            </div>
-            <div class="lb-pnl gradient">+48.9%</div>
-            <button class="follow-btn" onclick="toggleFollow(this, 'NightOwl')">+ Follow</button>
-          </div>
-        </div>
+        <div class="card" id="leaderboardGrid"></div>
       </section>
 
       <!-- ACTIVITY -->
@@ -1875,6 +1834,11 @@
       if (walletsStatus) walletsStatus.textContent = "Live data unavailable";
       document.getElementById("walletGrid").innerHTML =
         '<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn\'t load smart wallets. Please try again later.</div>';
+
+      const leaderboardStatus = document.getElementById("leaderboardStatus");
+      if (leaderboardStatus) leaderboardStatus.textContent = "Live data unavailable";
+      document.getElementById("leaderboardGrid").innerHTML =
+        '<div class="muted" style="padding:24px 0;">Couldn\'t load leaderboard. Please try again later.</div>';
     } else {
     const SUPABASE_URL = "https://ruatieohvdxjnmcfhqwh.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_37yjD6rqFM2gNofmzb8RbA_flCxE2H5";
@@ -2084,6 +2048,60 @@
     }
 
     loadSmartWallets();
+
+    // ---- Leaderboard (live from Supabase) ----
+    function leaderboardRowHtml(wallet, rank) {
+      const label = (wallet.label || truncateAddress(wallet.address) || "Wallet").trim();
+      const initials = label.replace(/^\$/, "").slice(0, 2).toUpperCase() || "??";
+      const pnl = Number(wallet.pnl_30d) || 0;
+      const isLoss = pnl < 0;
+      const winRate = Number(wallet.win_rate) || 0;
+      const totalTrades = Number(wallet.total_trades) || 0;
+      const onclickName = label.replace(/'/g, "\\'");
+
+      return `
+        <div class="lb-row">
+          <div class="lb-rank">${String(rank).padStart(2, "0")}</div>
+          <div class="avatar">${escapeHtml(initials)}</div>
+          <div class="lb-name">
+            <h3>${escapeHtml(label)}</h3>
+            <div class="muted">${winRate.toFixed(0)}% win rate · ${totalTrades} trades</div>
+          </div>
+          <div class="lb-pnl${isLoss ? "" : " gradient"}"${isLoss ? ' style="color:var(--loss-text)"' : ""}>${formatPct(pnl)}</div>
+          <button class="follow-btn" onclick="toggleFollow(this, '${onclickName}')">+ Follow</button>
+        </div>
+      `;
+    }
+
+    async function loadLeaderboard() {
+      const grid = document.getElementById("leaderboardGrid");
+      const status = document.getElementById("leaderboardStatus");
+
+      try {
+        const { data, error } = await sb
+          .from("wallets")
+          .select("*")
+          .order("pnl_30d", { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          grid.innerHTML = `<div class="muted" style="padding:24px 0;">No leaderboard data yet.</div>`;
+          status.textContent = "Live from Supabase";
+          return;
+        }
+
+        grid.innerHTML = data.map((wallet, i) => leaderboardRowHtml(wallet, i + 1)).join("");
+        status.textContent = "Top traders · 30D · Live from Supabase";
+      } catch (err) {
+        console.error("Failed to load leaderboard:", (err && (err.message || err.details)) || err);
+        grid.innerHTML = `<div class="muted" style="padding:24px 0;">Couldn't load leaderboard. Please try again later.</div>`;
+        status.textContent = "Live data unavailable";
+      }
+    }
+
+    loadLeaderboard();
     }
   </script>
 </body>
