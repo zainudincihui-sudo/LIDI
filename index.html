@@ -1398,36 +1398,12 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-zap"/></svg>Live Activity</h2>
-            <div class="muted">Example feed for the MVP</div>
+            <div class="muted" id="activityStatus">Loading live activity…</div>
           </div>
         </div>
 
-        <div class="card">
-
-          <div class="activity">
-            <div class="activity-dot"></div>
-            <div>
-              <b>AlphaWalker bought $CAT</b>
-              <p>2.4 SOL · 2 min ago</p>
-            </div>
-          </div>
-
-          <div class="activity">
-            <div class="activity-dot"></div>
-            <div>
-              <b>SignalTwo bought $LIDI</b>
-              <p>1.8 SOL · 6 min ago</p>
-            </div>
-          </div>
-
-          <div class="activity">
-            <div class="activity-dot sell"></div>
-            <div>
-              <b>DegenScout sold 35% of $FROG</b>
-              <p>4 min ago</p>
-            </div>
-          </div>
-
+        <div class="card" id="activityFeed">
+          <div class="muted" style="padding:24px 0;">Loading live activity…</div>
         </div>
       </section>
     </main>
@@ -1839,6 +1815,11 @@
       if (leaderboardStatus) leaderboardStatus.textContent = "Live data unavailable";
       document.getElementById("leaderboardGrid").innerHTML =
         '<div class="muted" style="padding:24px 0;">Couldn\'t load leaderboard. Please try again later.</div>';
+
+      const activityStatus = document.getElementById("activityStatus");
+      if (activityStatus) activityStatus.textContent = "Live data unavailable";
+      document.getElementById("activityFeed").innerHTML =
+        '<div class="muted" style="padding:24px 0;">Couldn\'t load live activity. Please try again later.</div>';
     } else {
     const SUPABASE_URL = "https://ruatieohvdxjnmcfhqwh.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_37yjD6rqFM2gNofmzb8RbA_flCxE2H5";
@@ -2102,6 +2083,72 @@
     }
 
     loadLeaderboard();
+
+    // ---- Live Activity (live from Supabase) ----
+    function formatRelativeTime(dateStr) {
+      const then = new Date(dateStr).getTime();
+      if (Number.isNaN(then)) return "";
+      const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+
+      if (diffSec < 60) return "just now";
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+      const diffDay = Math.floor(diffHr / 24);
+      return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+    }
+
+    function activityRowHtml(tx) {
+      const wallet = tx.wallets || {};
+      const token = tx.tokens || {};
+      const label = (wallet.label || truncateAddress(wallet.address) || "Wallet").trim();
+      const rawTicker = (token.ticker || "?").trim();
+      const ticker = rawTicker.startsWith("$") ? rawTicker : "$" + rawTicker;
+      const isSell = tx.type === "sell";
+      const action = isSell ? "sold" : "bought";
+
+      return `
+        <div class="activity">
+          <div class="activity-dot${isSell ? " sell" : ""}"></div>
+          <div>
+            <b>${escapeHtml(label)} ${action} ${escapeHtml(ticker)}</b>
+            <p>${formatCompactUsd(tx.value_usd)} · ${formatRelativeTime(tx.occurred_at)}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadLiveActivity() {
+      const feed = document.getElementById("activityFeed");
+      const status = document.getElementById("activityStatus");
+
+      try {
+        const { data, error } = await sb
+          .from("transactions")
+          .select("*, wallets(label, address), tokens(ticker)")
+          .order("occurred_at", { ascending: false })
+          .limit(15);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          feed.innerHTML = `<div class="muted" style="padding:24px 0;">No activity yet.</div>`;
+          status.textContent = "Live from Supabase";
+          return;
+        }
+
+        feed.innerHTML = data.map(activityRowHtml).join("");
+        feed.querySelectorAll(".activity").forEach(el => el.classList.add("reveal", "visible"));
+        status.textContent = "Live from Supabase";
+      } catch (err) {
+        console.error("Failed to load live activity:", (err && (err.message || err.details)) || err);
+        feed.innerHTML = `<div class="muted" style="padding:24px 0;">Couldn't load live activity. Please try again later.</div>`;
+        status.textContent = "Live data unavailable";
+      }
+    }
+
+    loadLiveActivity();
     }
   </script>
 </body>
