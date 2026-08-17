@@ -20,6 +20,10 @@ const BLOCKSCOUT_TOKENS_URL =
 // silently writing nulls.
 const ADDRESS_FIELDS = ["address_hash", "address", "contract_address_hash", "hash"];
 const HOLDERS_FIELDS = ["holders_count", "holders"];
+// Used by sync-transactions' extractAmount() as a fallback when a transfer
+// payload doesn't carry its own `total.decimals` (see issue #12) -- so it's
+// worth trying a couple of names here too rather than only the obvious one.
+const DECIMALS_FIELDS = ["decimals", "token_decimals"];
 // Candidate field names for a 24h price-change percentage. Blockscout's
 // token-list endpoint is not known to expose one (it's a block explorer,
 // not a price tracker) — these are checked just in case this instance adds
@@ -52,6 +56,10 @@ interface TokenRow {
   holder_count: number;
   price_change_24h: number;
   icon_url: string | null;
+  // Null (not 0) when Blockscout's item has no decimals field at all, so
+  // downstream fallback logic (sync-transactions' extractAmount()) can tell
+  // "unknown" apart from a genuine 0-decimal token.
+  decimals: number | null;
 }
 
 function firstDefined(item: BlockscoutTokenItem, fields: string[]): unknown {
@@ -118,6 +126,7 @@ Deno.serve(async (_req) => {
     const { items, pages } = await fetchAllTokens();
 
     let priceChangeFieldFound = false;
+    let decimalsFieldFound = false;
     let skipped = 0;
     // Keyed by lowercased address: a live run showed Blockscout can return
     // the same contract more than once (pagination overlap, or the same
@@ -136,6 +145,9 @@ Deno.serve(async (_req) => {
       const priceChangeRaw = firstDefined(item, PRICE_CHANGE_FIELDS);
       if (priceChangeRaw !== undefined) priceChangeFieldFound = true;
 
+      const decimalsRaw = firstDefined(item, DECIMALS_FIELDS);
+      if (decimalsRaw !== undefined) decimalsFieldFound = true;
+
       rowsByAddress.set(address.toLowerCase(), {
         contract_address: address,
         name: typeof item.name === "string" ? item.name : "",
@@ -145,6 +157,7 @@ Deno.serve(async (_req) => {
         holder_count: Math.trunc(toNumber(firstDefined(item, HOLDERS_FIELDS))),
         price_change_24h: toNumber(priceChangeRaw), // 0 if the field doesn't exist
         icon_url: typeof item.icon_url === "string" ? item.icon_url : null,
+        decimals: decimalsRaw !== undefined ? Math.trunc(toNumber(decimalsRaw)) : null,
       });
     }
 
@@ -169,9 +182,15 @@ Deno.serve(async (_req) => {
       skipped_missing_address: skipped,
       duplicates_skipped: duplicatesSkipped,
       price_change_24h_field_found: priceChangeFieldFound,
+      decimals_field_found: decimalsFieldFound,
       note: priceChangeFieldFound
         ? undefined
         : "Blockscout response has no 24h price-change field; price_change_24h was written as 0 for every row.",
+      decimals_note: decimalsFieldFound
+        ? undefined
+        : "Blockscout response has no decimals field; tokens.decimals was written as null for every " +
+          "row. sync-transactions' extractAmount() falls back to a hardcoded default (18) for these " +
+          "tokens when a transfer payload also lacks decimals -- see issue #12.",
       synced_at: new Date().toISOString(),
     };
 

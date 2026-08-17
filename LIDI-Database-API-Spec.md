@@ -66,6 +66,7 @@ Kenapa dibutuhkan: ini yang mengisi fitur "Trending Tokens".
 | `holder_count` | integer | Jumlah pemegang token |
 | `price_change_24h` | decimal | Persentase naik/turun harga |
 | `icon_url` | string, nullable | URL logo/icon token |
+| `decimals` | integer, nullable | Jumlah desimal token (mis. 18 untuk kebanyakan ERC-20) -- dipakai sync-transactions sebagai fallback saat payload transfer dari Blockscout tidak menyertakan `total.decimals` |
 
 ### 1.4 `transactions` — catatan setiap transaksi on-chain
 
