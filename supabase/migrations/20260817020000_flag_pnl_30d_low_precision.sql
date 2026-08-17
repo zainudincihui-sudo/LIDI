@@ -49,7 +49,16 @@
 -- zero for most wallets, so ranking the Leaderboard by pnl_30d does not
 -- currently produce a meaningful ordering -- treat it as a placeholder
 -- until sync-transactions captures real per-transfer pricing.
-create or replace function public.recompute_wallet_performance()
+--
+-- Adding pnl_30d_caveat below changes this function's return row type, which
+-- `create or replace function` cannot do for a `returns table (...)`
+-- function (Postgres: "cannot change return type of existing function" /
+-- 42P13) -- drop and recreate instead, and re-apply the grants from
+-- 20260817000000_compute_wallet_performance.sql since DROP FUNCTION resets
+-- them to the default (EXECUTE granted to PUBLIC).
+drop function if exists public.recompute_wallet_performance();
+
+create function public.recompute_wallet_performance()
 returns table (
   wallets_total bigint,
   wallets_with_performance bigint,
@@ -138,3 +147,6 @@ as $$
     'per-transfer historical pricing.' as pnl_30d_caveat
   from updated;
 $$;
+
+revoke execute on function public.recompute_wallet_performance() from public;
+grant execute on function public.recompute_wallet_performance() to service_role;
