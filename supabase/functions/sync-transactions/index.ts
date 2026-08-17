@@ -40,6 +40,11 @@ const BLOCKSCOUT_BASE_URL = "https://robinhoodchain.blockscout.com";
 const ADDRESS_FIELDS = ["address_hash", "address", "hash"];
 const TX_HASH_FIELDS = ["transaction_hash", "tx_hash", "hash"];
 
+// Fallback decimals used only when neither the transfer payload nor the
+// `tokens` table has a value -- see extractAmount() below (issue #12).
+// Most ERC-20 tokens use 18; it's the best guess we have as a last resort.
+const DEFAULT_DECIMALS = 18;
+
 const MAX_PAGES_PER_TOKEN = 2; // "latest transfers", not full history
 // Live runs against the full ~342-row tokens table hit WORKER_RESOURCE_LIMIT
 // (the Edge Function ran out of compute mid-invoke) even after capping to
@@ -64,6 +69,10 @@ interface TokenRow {
   id: string;
   contract_address: string;
   price_usd: number;
+  // Null when sync-tokens hasn't captured a decimals value for this token
+  // (Blockscout token-list item lacked one, or the row predates that field
+  // being synced) -- see extractAmount()'s fallback chain below.
+  decimals: number | null;
 }
 
 interface TransactionRow {
@@ -104,13 +113,58 @@ function extractParty(raw: unknown): Party {
   };
 }
 
-function extractAmount(item: BlockscoutItem): number {
+type DecimalsSource = "payload" | "tokens_table" | "default";
+
+interface AmountResult {
+  amount: number;
+  // Where the decimals value used to scale `amount` came from. "payload"
+  // is the normal case; "tokens_table" and "default" mean the Blockscout
+  // transfer didn't carry `total.decimals` and a fallback kicked in -- see
+  // the call site, which logs and counts these (issue #12).
+  decimalsSource: DecimalsSource;
+}
+
+// Blockscout's transfers endpoint is expected to carry `total.decimals` on
+// every ERC-20 transfer, but issue #12 found real payloads where it's
+// missing. The old code treated a missing/unparseable decimals as `0`
+// (via toNumber(undefined) === 0) and returned the RAW, undivided token
+// amount in that case -- e.g. a token with 18 decimals would report an
+// amount up to 10^18 times too large, and since
+// value_usd = amount * token.price_usd, the USD value was wrong by the
+// same factor. This must never happen silently again, so the fallback
+// chain below is explicit and always divides by *some* decimals value:
+//   1. `total.decimals` from the Blockscout payload (normal case).
+//   2. `tokens.decimals`, synced separately by sync-tokens from
+//      Blockscout's token-list endpoint (second-best: real data, just not
+//      from this specific transfer).
+//   3. DEFAULT_DECIMALS (18), the common case for ERC-20 tokens, as a last
+//      resort so we still record a plausible amount instead of a garbage
+//      one.
+// Falling back to (2) or (3) means Blockscout's transfer payload is
+// missing data we'd normally rely on -- the caller logs + counts these so
+// it's visible whether historical rows synced before this fix (which used
+// the old raw-value behavior) need a backfill.
+function extractAmount(
+  item: BlockscoutItem,
+  token: Pick<TokenRow, "contract_address" | "decimals">,
+): AmountResult {
   const total = item.total as BlockscoutItem | undefined;
-  if (!total) return 0;
+  if (!total) return { amount: 0, decimalsSource: "payload" };
   const value = toNumber(total.value);
-  const decimals = Math.trunc(toNumber(total.decimals));
-  if (decimals <= 0) return value;
-  return value / Math.pow(10, decimals);
+
+  const payloadDecimalsRaw = total.decimals;
+  if (payloadDecimalsRaw !== undefined && payloadDecimalsRaw !== null) {
+    const decimals = Math.trunc(toNumber(payloadDecimalsRaw));
+    if (decimals >= 0) {
+      return { amount: value / Math.pow(10, decimals), decimalsSource: "payload" };
+    }
+  }
+
+  if (token.decimals !== null && token.decimals !== undefined && token.decimals >= 0) {
+    return { amount: value / Math.pow(10, token.decimals), decimalsSource: "tokens_table" };
+  }
+
+  return { amount: value / Math.pow(10, DEFAULT_DECIMALS), decimalsSource: "default" };
 }
 
 async function fetchTransfersForToken(
@@ -174,10 +228,10 @@ async function saveCursor(supabase: any, lastTokenId: string): Promise<void> {
 async function loadNextTokenBatch(
   supabase: any,
   afterId: string | null,
-): Promise<{ id: string; contract_address: string; price_usd: unknown }[]> {
+): Promise<{ id: string; contract_address: string; price_usd: unknown; decimals: unknown }[]> {
   let query = supabase
     .from("tokens")
-    .select("id,contract_address,price_usd")
+    .select("id,contract_address,price_usd,decimals")
     .order("id", { ascending: true })
     .limit(TOKENS_PER_RUN);
   if (afterId) query = query.gt("id", afterId);
@@ -191,7 +245,7 @@ async function loadNextTokenBatch(
     const seenIds = rows.map((row: { id: string }) => row.id);
     let wrapQuery = supabase
       .from("tokens")
-      .select("id,contract_address,price_usd")
+      .select("id,contract_address,price_usd,decimals")
       .order("id", { ascending: true })
       .limit(remaining);
     if (seenIds.length > 0) wrapQuery = wrapQuery.not("id", "in", `(${seenIds.join(",")})`);
@@ -224,6 +278,7 @@ Deno.serve(async (_req) => {
       id: row.id as string,
       contract_address: row.contract_address as string,
       price_usd: toNumber(row.price_usd),
+      decimals: typeof row.decimals === "number" ? row.decimals : null,
     }));
 
     // 2. Fetch latest transfers per token.
@@ -280,6 +335,8 @@ Deno.serve(async (_req) => {
     let unclassifiedSkipped = 0;
     let missingWalletSkipped = 0;
     let missingTxHashSkipped = 0;
+    let decimalsFallbackTokensTable = 0;
+    let decimalsFallbackDefault = 0;
     const txRows: TransactionRow[] = [];
 
     for (const { token, items } of perTokenTransfers) {
@@ -318,7 +375,24 @@ Deno.serve(async (_req) => {
 
         const occurredAt =
           typeof item.timestamp === "string" ? item.timestamp : new Date().toISOString();
-        const amount = extractAmount(item);
+        const { amount, decimalsSource } = extractAmount(item, token);
+        if (decimalsSource === "tokens_table") {
+          decimalsFallbackTokensTable++;
+          console.warn(
+            `[sync-transactions] tx ${txHash}: Blockscout transfer payload missing ` +
+              `total.decimals for token ${token.contract_address} -- fell back to ` +
+              `tokens.decimals=${token.decimals}. If tokens.decimals is also wrong/unset for ` +
+              `this token, this row's amount/value_usd will be wrong too.`,
+          );
+        } else if (decimalsSource === "default") {
+          decimalsFallbackDefault++;
+          console.warn(
+            `[sync-transactions] tx ${txHash}: Blockscout transfer payload missing ` +
+              `total.decimals AND tokens.decimals is unset for token ${token.contract_address} ` +
+              `-- fell back to DEFAULT_DECIMALS=${DEFAULT_DECIMALS}. Verify this token's real ` +
+              `decimals; this row's amount/value_usd may need a backfill if the guess is wrong.`,
+          );
+        }
 
         txRows.push({
           wallet_id: walletId,
@@ -394,11 +468,22 @@ Deno.serve(async (_req) => {
       transactions_missing_tx_hash_skipped: missingTxHashSkipped,
       transactions_duplicate_tx_hash_skipped: duplicateTxHashSkipped,
       transactions_upserted: upserted,
+      transactions_decimals_fallback_tokens_table: decimalsFallbackTokensTable,
+      transactions_decimals_fallback_default: decimalsFallbackDefault,
       note:
         "Buy/sell is inferred from the Blockscout `is_contract` flag on the transfer counterpart, " +
         "not a curated list of known Robinhood Chain DEX pool addresses -- transfers touching a " +
         "non-DEX contract (bridge, staking, etc.) may be mislabeled, and wallet-to-wallet transfers " +
         "(neither side a contract) are skipped rather than guessed.",
+      decimals_note:
+        decimalsFallbackTokensTable + decimalsFallbackDefault > 0
+          ? `${decimalsFallbackTokensTable} row(s) this run used tokens.decimals as a fallback ` +
+            `(Blockscout transfer payload had no total.decimals) and ${decimalsFallbackDefault} ` +
+            `row(s) fell all the way back to DEFAULT_DECIMALS=${DEFAULT_DECIMALS} (tokens.decimals ` +
+            "also unset) -- see per-row warnings in the function logs. Rows synced before this fix " +
+            "shipped may have used the raw undivided amount instead (issue #12) and could need a " +
+            "backfill; check the affected tx_hash values in the logs."
+          : undefined,
       synced_at: new Date().toISOString(),
     };
 
