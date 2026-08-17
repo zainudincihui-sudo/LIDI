@@ -1315,7 +1315,7 @@
               type="text"
               placeholder="Search token, wallet, or trader..."
               aria-label="Search token, wallet, or trader"
-              oninput="searchAll()"
+              oninput="handleSearchInput()"
               onkeydown="if(event.key==='Enter') explore()"
             />
             <button class="explore-btn" onclick="explore()" aria-label="Explore search results">
@@ -1756,56 +1756,44 @@
       });
     });
 
-    function explore() {
-      const value = document.getElementById("search").value.trim();
+    // Wired up further down, once the Supabase client exists, to an async
+    // function that queries tokens/wallets and returns { tokenCount, walletCount }.
+    // Stays null (a no-op) if the Supabase client library failed to load.
+    let runSearchQuery = null;
+    let searchDebounceTimer = null;
 
-      if (!value) {
-        document.getElementById("search").focus();
+    function handleSearchInput() {
+      clearTimeout(searchDebounceTimer);
+      if (!runSearchQuery) return;
+
+      const query = document.getElementById("search").value.trim();
+      if (!query) {
+        runSearchQuery(""); // empty query -> restore the default view immediately, no debounce needed
         return;
       }
 
-      const { tokenVisible, walletVisible } = searchAll();
-      goToTab(walletVisible > tokenVisible ? 1 : 0);
+      searchDebounceTimer = setTimeout(() => runSearchQuery(query), 300);
+    }
+
+    async function explore() {
+      const input = document.getElementById("search");
+      const value = input.value.trim();
+
+      if (!value || !runSearchQuery) {
+        input.focus();
+        return;
+      }
+
+      clearTimeout(searchDebounceTimer);
+      const { tokenCount, walletCount } = await runSearchQuery(value);
+      goToTab(walletCount > tokenCount ? 1 : 0);
     }
 
     function clearSearch() {
       const input = document.getElementById("search");
       input.value = "";
-      searchAll();
+      handleSearchInput();
       input.focus();
-    }
-
-    function searchAll() {
-      const query = document
-        .getElementById("search")
-        .value
-        .toLowerCase()
-        .trim();
-
-      let tokenVisible = 0;
-      document.querySelectorAll(".token-card").forEach(card => {
-        const match = !query || card.dataset.search.toLowerCase().includes(query);
-        card.style.display = match ? "" : "none";
-        if (match) tokenVisible++;
-      });
-      document.getElementById("emptyTrending").style.display =
-        (query && tokenVisible === 0) ? "block" : "none";
-
-      let walletVisible = 0;
-      document.querySelectorAll(".wallet-card").forEach(card => {
-        const match = !query || card.dataset.search.toLowerCase().includes(query);
-        card.style.display = match ? "" : "none";
-        if (match) walletVisible++;
-      });
-      document.getElementById("emptyWallets").style.display =
-        (query && walletVisible === 0) ? "block" : "none";
-
-      const status = document.getElementById("searchStatus");
-      status.textContent = query
-        ? `${tokenVisible} token · ${walletVisible} wallet cocok dengan "${query}"`
-        : "";
-
-      return { tokenVisible, walletVisible };
     }
 
     // ---- Trending Tokens (live from Supabase) ----
@@ -1948,20 +1936,23 @@
 
         if (error) throw error;
 
-        if (!data || data.length === 0) {
-          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No tokens yet.</div>`;
-          status.textContent = "Live from Supabase";
-          return;
-        }
+        defaultTokensHtml = (!data || data.length === 0)
+          ? `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No tokens yet.</div>`
+          : data.map(tokenCardHtml).join("");
 
-        grid.innerHTML = data.map(tokenCardHtml).join("");
-        grid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
-        status.textContent = "Live from Supabase";
-        searchAll();
+        // A search may already be in flight/showing (e.g. the user typed
+        // before this initial load resolved) -- don't clobber it.
+        if (!document.getElementById("search").value.trim()) {
+          grid.innerHTML = defaultTokensHtml;
+          grid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+          status.textContent = "Live from Supabase";
+        }
       } catch (err) {
         console.error("Failed to load trending tokens:", (err && (err.message || err.details)) || err);
-        grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load trending tokens. Please try again later.</div>`;
-        status.textContent = "Live data unavailable";
+        if (!document.getElementById("search").value.trim()) {
+          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load trending tokens. Please try again later.</div>`;
+          status.textContent = "Live data unavailable";
+        }
       }
     }
 
@@ -2058,24 +2049,128 @@
 
         if (error) throw error;
 
-        if (!data || data.length === 0) {
-          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No wallets yet.</div>`;
-          status.textContent = "Live from Supabase";
-          return;
-        }
+        defaultWalletsHtml = (!data || data.length === 0)
+          ? `<div class="muted" style="grid-column:1/-1;padding:24px 0;">No wallets yet.</div>`
+          : data.map(walletCardHtml).join("");
 
-        grid.innerHTML = data.map(walletCardHtml).join("");
-        grid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
-        status.textContent = "Live from Supabase";
-        searchAll();
+        if (!document.getElementById("search").value.trim()) {
+          grid.innerHTML = defaultWalletsHtml;
+          grid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+          status.textContent = "Live from Supabase";
+        }
       } catch (err) {
         console.error("Failed to load smart wallets:", (err && (err.message || err.details)) || err);
-        grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load smart wallets. Please try again later.</div>`;
-        status.textContent = "Live data unavailable";
+        if (!document.getElementById("search").value.trim()) {
+          grid.innerHTML = `<div class="muted" style="grid-column:1/-1;padding:24px 0;">Couldn't load smart wallets. Please try again later.</div>`;
+          status.textContent = "Live data unavailable";
+        }
       }
     }
 
     loadSmartWallets();
+
+    // ---- Search (queries Supabase directly with ilike, debounced 300ms by handleSearchInput) ----
+    let defaultTokensHtml = "";
+    let defaultWalletsHtml = "";
+    let searchRequestId = 0;
+
+    // Escape LIKE/ILIKE wildcard characters in the user's raw input so a
+    // literal "%" or "_" they type is matched literally, not as a wildcard.
+    function escapeLikePattern(str) {
+      return str.replace(/[\\%_]/g, ch => "\\" + ch);
+    }
+
+    async function searchTokensInDb(query) {
+      const pattern = `%${escapeLikePattern(query)}%`;
+      const [byTicker, byName] = await Promise.all([
+        sb.from("tokens").select("*").ilike("ticker", pattern).order("price_change_24h", { ascending: false }).limit(24),
+        sb.from("tokens").select("*").ilike("name", pattern).order("price_change_24h", { ascending: false }).limit(24),
+      ]);
+      if (byTicker.error) throw byTicker.error;
+      if (byName.error) throw byName.error;
+
+      const merged = new Map();
+      [...(byTicker.data || []), ...(byName.data || [])].forEach(t => merged.set(t.id, t));
+      return Array.from(merged.values()).slice(0, 24);
+    }
+
+    async function searchWalletsInDb(query) {
+      const pattern = `%${escapeLikePattern(query)}%`;
+      const [byAddress, byLabel] = await Promise.all([
+        sb.from("wallets").select("*").ilike("address", pattern).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
+        sb.from("wallets").select("*").ilike("label", pattern).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
+      ]);
+      if (byAddress.error) throw byAddress.error;
+      if (byLabel.error) throw byLabel.error;
+
+      const merged = new Map();
+      [...(byAddress.data || []), ...(byLabel.data || [])].forEach(w => merged.set(w.id, w));
+      return Array.from(merged.values()).slice(0, 24);
+    }
+
+    function showDefaultResults() {
+      const tokenGrid = document.getElementById("tokenGrid");
+      tokenGrid.innerHTML = defaultTokensHtml;
+      tokenGrid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+      document.getElementById("emptyTrending").style.display = "none";
+      document.getElementById("trendingStatus").textContent = "Live from Supabase";
+
+      const walletGrid = document.getElementById("walletGrid");
+      walletGrid.innerHTML = defaultWalletsHtml;
+      walletGrid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+      document.getElementById("emptyWallets").style.display = "none";
+      document.getElementById("walletsStatus").textContent = "Live from Supabase";
+
+      document.getElementById("searchStatus").textContent = "";
+    }
+
+    async function performSearch(query) {
+      if (!query) {
+        searchRequestId++; // invalidate any in-flight search response
+        showDefaultResults();
+        return { tokenCount: 0, walletCount: 0 };
+      }
+
+      // Guards against out-of-order responses: if the user keeps typing, an
+      // older, slower request's response is dropped once a newer one starts.
+      const requestId = ++searchRequestId;
+      document.getElementById("trendingStatus").textContent = "Searching…";
+      document.getElementById("walletsStatus").textContent = "Searching…";
+      document.getElementById("searchStatus").textContent = `Mencari "${query}"…`;
+
+      try {
+        const [tokens, wallets] = await Promise.all([searchTokensInDb(query), searchWalletsInDb(query)]);
+        if (requestId !== searchRequestId) return { tokenCount: 0, walletCount: 0 };
+
+        const tokenGrid = document.getElementById("tokenGrid");
+        tokenGrid.innerHTML = tokens.map(tokenCardHtml).join("");
+        tokenGrid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+        document.getElementById("emptyTrending").style.display = tokens.length === 0 ? "block" : "none";
+        document.getElementById("trendingStatus").textContent =
+          tokens.length ? `${tokens.length} token cocok` : `Tidak ada token untuk "${query}"`;
+
+        const walletGrid = document.getElementById("walletGrid");
+        walletGrid.innerHTML = wallets.map(walletCardHtml).join("");
+        walletGrid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+        document.getElementById("emptyWallets").style.display = wallets.length === 0 ? "block" : "none";
+        document.getElementById("walletsStatus").textContent =
+          wallets.length ? `${wallets.length} wallet cocok` : `Tidak ada wallet untuk "${query}"`;
+
+        document.getElementById("searchStatus").textContent =
+          `${tokens.length} token · ${wallets.length} wallet cocok dengan "${query}"`;
+
+        return { tokenCount: tokens.length, walletCount: wallets.length };
+      } catch (err) {
+        if (requestId !== searchRequestId) return { tokenCount: 0, walletCount: 0 };
+        console.error("Search failed:", (err && (err.message || err.details)) || err);
+        document.getElementById("searchStatus").textContent = "Pencarian gagal, coba lagi.";
+        document.getElementById("trendingStatus").textContent = "Live data unavailable";
+        document.getElementById("walletsStatus").textContent = "Live data unavailable";
+        return { tokenCount: 0, walletCount: 0 };
+      }
+    }
+
+    runSearchQuery = performSearch;
 
     // ---- Leaderboard (live from Supabase) ----
     function leaderboardRowHtml(wallet, rank) {
