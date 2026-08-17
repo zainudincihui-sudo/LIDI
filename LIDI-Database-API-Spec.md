@@ -65,6 +65,7 @@ Kenapa dibutuhkan: ini yang mengisi fitur "Trending Tokens".
 | `volume_24h` | decimal | Volume transaksi 24 jam |
 | `holder_count` | integer | Jumlah pemegang token |
 | `price_change_24h` | decimal | Persentase naik/turun harga |
+| `icon_url` | string, nullable | URL logo/icon token |
 
 ### 1.4 `transactions` — catatan setiap transaksi on-chain
 

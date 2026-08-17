@@ -51,6 +51,7 @@ interface TokenRow {
   volume_24h: number;
   holder_count: number;
   price_change_24h: number;
+  icon_url: string | null;
 }
 
 function firstDefined(item: BlockscoutTokenItem, fields: string[]): unknown {
@@ -143,6 +144,7 @@ Deno.serve(async (_req) => {
         volume_24h: toNumber(item.volume_24h),
         holder_count: Math.trunc(toNumber(firstDefined(item, HOLDERS_FIELDS))),
         price_change_24h: toNumber(priceChangeRaw), // 0 if the field doesn't exist
+        icon_url: typeof item.icon_url === "string" ? item.icon_url : null,
       });
     }
 

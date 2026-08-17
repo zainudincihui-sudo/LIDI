@@ -92,7 +92,7 @@ jobs:
           SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
         run: |
           set -euo pipefail
-          curl -sS "https://$PROJECT_REF.supabase.co/rest/v1/tokens?select=contract_address,ticker,name,price_usd,volume_24h,holder_count,price_change_24h&order=volume_24h.desc&limit=10" \
+          curl -sS "https://$PROJECT_REF.supabase.co/rest/v1/tokens?select=contract_address,ticker,name,price_usd,volume_24h,holder_count,price_change_24h,icon_url&order=volume_24h.desc&limit=10" \
             -H "apikey: $SERVICE_ROLE_KEY" \
             -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
             -o tokens-sample.json
