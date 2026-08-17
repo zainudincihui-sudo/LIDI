@@ -55,7 +55,7 @@ It returns a JSON summary (`fetched`, `upserted`, `skipped_missing_address`,
 `price_change_24h_field_found`). Then confirm the table actually changed:
 
 ```sql
-select contract_address, ticker, name, price_usd, volume_24h, holder_count, price_change_24h
+select contract_address, ticker, name, price_usd, volume_24h, holder_count, price_change_24h, icon_url
 from tokens
 order by volume_24h desc
 limit 10;
@@ -74,6 +74,13 @@ if none are present, flagging that in its response
 (`price_change_24h_field_found: false`). If the response shows `false`,
 that confirms the field doesn't exist on this instance and `0` is what's
 being written for every row until a price-history source is added.
+
+## `icon_url`
+
+Blockscout's `/api/v2/tokens` items include an `icon_url` field (token logo,
+nullable when Blockscout has no logo for that token). The function writes it
+straight into `tokens.icon_url` with no fallback field names, since this one
+has been stable across Blockscout API versions.
 
 ## Field-name fallbacks
 
