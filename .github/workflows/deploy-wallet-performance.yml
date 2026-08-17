@@ -1,0 +1,76 @@
+name: Deploy wallet performance recompute to Supabase
+
+# Manual trigger only. Run this from the Actions tab after adding the
+# SUPABASE_ACCESS_TOKEN secret (Settings > Secrets and variables > Actions).
+#
+# GitHub-hosted runners have normal internet access, unlike some sandboxed
+# dev environments, so this is the reliable way to actually reach the
+# Supabase Management API / Postgres and deploy this for real.
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Resolve service role key
+        id: keys
+        run: |
+          set -euo pipefail
+          KEY=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true" \
+            | jq -r '.[] | select(.name=="service_role") | .api_key')
+          if [ -z "$KEY" ] || [ "$KEY" = "null" ]; then
+            echo "Could not resolve the service_role API key from the Management API" >&2
+            exit 1
+          fi
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Push migrations
+        run: supabase db push --yes
+
+      - name: Invoke recompute_wallet_performance (manual run + summary)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          curl -sS -X POST "https://$PROJECT_REF.supabase.co/rest/v1/rpc/recompute_wallet_performance" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            -o recompute-result.json -w '\nHTTP %{http_code}\n'
+          cat recompute-result.json
+
+      - name: Read back sample wallets with nonzero performance
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          curl -sS "https://$PROJECT_REF.supabase.co/rest/v1/wallets?select=address,win_rate,pnl_30d,total_trades&total_trades=gt.0&order=pnl_30d.desc&limit=10" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -o wallets-sample.json
+          cat wallets-sample.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-performance-deploy-results
+          path: |
+            recompute-result.json
+            wallets-sample.json
