@@ -1072,6 +1072,18 @@
       font-size: 15px;
     }
 
+    .footer-warning {
+      margin: 14px 0 0;
+      padding: 10px 12px;
+      background: var(--stat-bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      max-width: 320px;
+    }
+
     .footer-col h4 {
       margin: 0 0 14px;
       font-size: 12px;
@@ -1406,13 +1418,13 @@
         <p>By the time a token is trending on a chart or all over social media, the early movers have already taken their position. The real edge isn't the price chart — it's knowing which wallets acted before the crowd did.</p>
 
         <h3>What LIDI does</h3>
-        <p><strong>Trending Tokens</strong> surfaces memecoins gaining volume and holders in real time. <strong>Smart Wallets</strong> ranks addresses by track record, so you can see who's consistently early and profitable. <strong>Live Activity</strong> streams on-chain transactions as they happen. <strong>Leaderboard</strong> ranks the best-performing traders over time. <strong>Follow & Alerts</strong> lets you track specific wallets and get notified the moment they act.</p>
+        <p><strong>Trending Tokens</strong> surfaces tokens gaining volume on Robinhood Chain, indexed automatically. <strong>Smart Wallets</strong> ranks addresses by track record as trading history accumulates. <strong>Live Activity</strong> streams on-chain transactions as they're indexed. <strong>Leaderboard</strong> ranks traders by realized performance. <strong>Follow & Alerts</strong> lets you track specific wallets and get notified the moment they act.</p>
 
         <h3>How we're building it</h3>
         <p>LIDI is being built in stages, from the ground up, as a pure analytics platform — no wallet connection required, ever:</p>
         <p>
-          <strong>V1 — Discovery:</strong> tokens, wallets, and live activity.<br>
-          <strong>V2 — Social:</strong> follow, profiles, and leaderboards.<br>
+          <strong>V1 — Discovery (live):</strong> tokens, wallets, and activity, indexed automatically from Robinhood Chain every few minutes.<br>
+          <strong>V2 — Social (partly live):</strong> leaderboards are live; follow and profiles are still in progress.<br>
           <strong>V3 — Intelligence:</strong> the LIDI Score and smart alerts.<br>
           <strong>V4 — AI:</strong> automated analysis that surfaces opportunities for you.
         </p>
@@ -1420,7 +1432,10 @@
         <h3>Built on Robinhood Chain</h3>
         <p>LIDI reads directly from Robinhood Chain, indexing wallet activity and token movement so the data you see reflects what's actually happening on-chain — not a delayed or curated feed.</p>
 
-        <p><em>LIDI is under active development. Product details and figures shown across the site will evolve as new features roll out.</em></p>
+        <h3>A note on accuracy</h3>
+        <p>Wallet performance metrics (win rate, PnL) are calculated from indexed transaction history, which grows over time — wallets with little or no matched trading history will show as not yet ranked rather than a fabricated score. Coverage and precision are expected to improve as more history is indexed.</p>
+
+        <p><em>LIDI is live and under active development. Figures update automatically as new on-chain activity is indexed.</em></p>
       </div>
     </section>
 
@@ -1429,17 +1444,11 @@
       <div class="card info-card">
         <p>Have a question, feedback, a bug to report, or a partnership idea? We'd like to hear from you.</p>
 
-        <h3>General inquiries</h3>
-        <p><a href="mailto:hello@lidi.io">hello@lidi.io</a></p>
-
-        <h3>Support</h3>
-        <p><a href="mailto:support@lidi.io">support@lidi.io</a> — for issues with the app, wallet connections, or data accuracy.</p>
-
-        <h3>Partnerships & press</h3>
-        <p><a href="mailto:partners@lidi.io">partners@lidi.io</a></p>
+        <h3>Email</h3>
+        <p><a href="mailto:getlidimarkets@gmail.com">getlidimarkets@gmail.com</a></p>
 
         <h3>Social</h3>
-        <p>Follow <strong>@LIDI</strong> on X for updates, or reach out there directly for the fastest response.</p>
+        <p>Follow <a href="https://x.com/lidimarkets" target="_blank" rel="noopener"><strong>@lidimarkets</strong></a> on X for updates, or reach out there directly for the fastest response.</p>
 
         <p><em>We typically respond within 1–2 business days.</em></p>
       </div>
@@ -1469,7 +1478,7 @@
         <p>As LIDI evolves, this policy will be updated to reflect real data practices, and material changes will be communicated clearly.</p>
 
         <h3>7. Contact</h3>
-        <p>Questions about this policy can be sent to <a href="mailto:hello@lidi.io">hello@lidi.io</a>.</p>
+        <p>Questions about this policy can be sent to <a href="mailto:getlidimarkets@gmail.com">getlidimarkets@gmail.com</a>.</p>
 
         <p><em>This policy is reviewed periodically as LIDI's products and data practices evolve.</em></p>
       </div>
@@ -1501,7 +1510,7 @@
         <h3>7. Changes to these terms</h3>
         <p>These terms may be updated as LIDI develops. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
 
-        <p><em>Figures shown across the site may include illustrative or sample data during ongoing development and do not always reflect real-time market activity.</em></p>
+        <p><em>Token, wallet, and activity data is indexed automatically from Robinhood Chain and refreshed every few minutes. Wallet performance metrics (win rate, PnL) are calculated from indexed transaction history and improve in coverage and precision as more history is indexed — see the About page for known limitations.</em></p>
       </div>
     </section>
 
@@ -1514,8 +1523,9 @@
           </a>
           <p>Social intelligence for on-chain traders. Built on Robinhood Chain.</p>
           <div class="footer-social">
-            <a href="#" aria-label="LIDI on X">𝕏</a>
+            <a href="https://x.com/lidimarkets" target="_blank" rel="noopener" aria-label="LIDI on X">𝕏</a>
           </div>
+          <p class="footer-warning">⚠️ @lidimarkets is our only official account. We're not affiliated with any other LIDI-branded profile or site — stay alert for impersonators.</p>
         </div>
 
         <div class="footer-col">
