@@ -1340,7 +1340,7 @@
             <h2><svg class="icon section-icon"><use href="#icon-flame"/></svg>Trending</h2>
             <div class="muted" id="trendingStatus">Loading live data…</div>
           </div>
-          <div class="muted">24h</div>
+          <div class="muted">By volume</div>
         </div>
 
         <div class="grid" id="tokenGrid"></div>
@@ -1837,52 +1837,11 @@
       return num >= 1000 ? (num / 1000).toFixed(1) + "K" : String(num);
     }
 
-    // No historical price series in the schema — sparkline only signals up/down direction, not real history.
-    function sparklinePoints(isPositive) {
-      return isPositive
-        ? [[0,29],[10,25],[20,27],[30,21],[40,24],[50,15],[60,18],[70,10],[80,13],[90,6],[100,3]]
-        : [[0,5],[10,9],[20,7],[30,13],[40,10],[50,17],[60,14],[70,21],[80,18],[90,25],[100,29]];
-    }
-
-    // Ubah titik-titik jadi kurva halus (Catmull-Rom -> Bezier) supaya garis tidak patah-patah
-    // Sampling Catmull-Rom rapat, hasilnya kurva jauh lebih halus & natural
-    // dibanding rangkaian Bezier biasa (tidak ada sudut patah di titik sambung)
-    function catmullRomPoint(p0, p1, p2, p3, t) {
-      const t2 = t * t, t3 = t2 * t;
-      const x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
-      const y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
-      return [x, y];
-    }
-
-    function smoothPath(pts, samplesPerSeg = 14) {
-      if (pts.length < 3) return `M ${pts.map(p => p.join(",")).join(" L ")}`;
-      let d = `M ${pts[0][0]},${pts[0][1]}`;
-      for (let i = 0; i < pts.length - 1; i++) {
-        const p0 = pts[i === 0 ? i : i - 1];
-        const p1 = pts[i];
-        const p2 = pts[i + 1];
-        const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-        for (let s = 1; s <= samplesPerSeg; s++) {
-          const [x, y] = catmullRomPoint(p0, p1, p2, p3, s / samplesPerSeg);
-          d += ` L ${x.toFixed(2)},${y.toFixed(2)}`;
-        }
-      }
-      return d;
-    }
-
     function tokenCardHtml(token) {
       const rawTicker = (token.ticker || "?").trim();
       const ticker = rawTicker.startsWith("$") ? rawTicker : "$" + rawTicker;
       const name = token.name || rawTicker;
-      const change = Number(token.price_change_24h) || 0;
-      const isLoss = change < 0;
       const initial = rawTicker.replace(/^\$/, "").charAt(0).toUpperCase() || "?";
-      const pts = sparklinePoints(!isLoss);
-      const linePath = smoothPath(pts);
-      const areaPath = `${linePath} L 100,34 L 0,34 Z`;
-      const [lastX, lastY] = pts[pts.length - 1];
-      const stroke = isLoss ? "var(--loss-text)" : "var(--green)";
-      const fillUrl = isLoss ? "url(#sparkline-fill-loss)" : "url(#sparkline-fill)";
       const searchTerms = escapeHtml(`${ticker} ${name}`.toLowerCase());
 
       return `
@@ -1895,17 +1854,10 @@
                 <div class="coin-name">${escapeHtml(name)}</div>
               </div>
             </div>
-            <div class="gain${isLoss ? " loss" : ""}">${isLoss ? "" : "+"}${change.toFixed(1)}%</div>
           </div>
 
           <div class="price">${formatPrice(token.price_usd)}</div>
           <div class="muted">Volume ${formatCompactUsd(token.volume_24h)} · ${formatHolders(token.holder_count)} holders</div>
-          <svg class="sparkline" viewBox="0 0 100 34" preserveAspectRatio="none">
-            <path d="${areaPath}" fill="${fillUrl}" stroke="none"/>
-            <path class="spark-line" d="${linePath}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#line-glow)" vector-effect="non-scaling-stroke"/>
-            <circle class="spark-pulse" cx="${lastX}" cy="${lastY}" r="2.4" fill="${stroke}"/>
-            <circle class="spark-dot" cx="${lastX}" cy="${lastY}" r="2.4" fill="${stroke}"/>
-          </svg>
         </article>
       `;
     }
@@ -1918,7 +1870,7 @@
         const { data, error } = await sb
           .from("tokens")
           .select("*")
-          .order("price_change_24h", { ascending: false })
+          .order("volume_24h", { ascending: false })
           .limit(12);
 
         if (error) throw error;
