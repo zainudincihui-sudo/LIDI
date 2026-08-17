@@ -823,6 +823,8 @@
     }
 
     .coin-icon {
+      position: relative;
+      overflow: hidden;
       width: 43px;
       height: 43px;
       border-radius: 50%;
@@ -831,6 +833,15 @@
       color: #07120d;
       font-weight: 950;
       background: linear-gradient(135deg, var(--green), var(--teal));
+    }
+
+    .coin-icon img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
     }
 
     .ticker {
@@ -1894,12 +1905,16 @@
       const stroke = isLoss ? "var(--loss-text)" : "var(--green)";
       const fillUrl = isLoss ? "url(#sparkline-fill-loss)" : "url(#sparkline-fill)";
       const searchTerms = escapeHtml(`${ticker} ${name}`.toLowerCase());
+      const iconUrl = (token.icon_url || "").trim();
+      const iconImgHtml = iconUrl
+        ? `<img src="${escapeHtml(iconUrl)}" alt="" loading="lazy" onerror="this.remove()" />`
+        : "";
 
       return `
         <article class="card token-card" data-search="${searchTerms}">
           <div class="token-top">
             <div class="coin">
-              <div class="coin-icon">${escapeHtml(initial)}</div>
+              <div class="coin-icon">${iconImgHtml}${escapeHtml(initial)}</div>
               <div>
                 <div class="ticker">${escapeHtml(ticker)}</div>
                 <div class="coin-name">${escapeHtml(name)}</div>
