@@ -1467,15 +1467,15 @@
 
           <div class="hero-stats">
             <div class="hero-stat">
-              <strong>1,284</strong>
+              <strong id="heroWalletsCount">—</strong>
               <span>Wallets tracked</span>
             </div>
             <div class="hero-stat">
-              <strong>$8.4M</strong>
+              <strong id="heroVolumeIndexed">—</strong>
               <span>Volume indexed</span>
             </div>
             <div class="hero-stat">
-              <strong>342</strong>
+              <strong id="heroTokensCount">—</strong>
               <span>Tokens tracked</span>
             </div>
           </div>
@@ -1954,6 +1954,11 @@
     // ---- Trending Tokens (live from Supabase) ----
     if (typeof supabase === "undefined") {
       console.error("Supabase client library failed to load from CDN.");
+      ["heroWalletsCount", "heroVolumeIndexed", "heroTokensCount"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = "—";
+      });
+
       const status = document.getElementById("trendingStatus");
       if (status) status.textContent = "Live data unavailable";
       document.getElementById("tokenGrid").innerHTML =
@@ -1983,6 +1988,61 @@
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       }[c]));
     }
+
+    // ---- Hero stats (live from Supabase) ----
+    function formatCount(n) {
+      return Number(n).toLocaleString("en-US");
+    }
+
+    async function loadHeroWalletsCount() {
+      const el = document.getElementById("heroWalletsCount");
+      if (!el) return;
+      try {
+        // head: true skips the row data entirely -- Postgres only returns
+        // the count, so this stays cheap no matter how many wallets exist.
+        const { count, error } = await sb.from("wallets").select("*", { count: "exact", head: true });
+        if (error) throw error;
+        el.textContent = count == null ? "—" : formatCount(count);
+      } catch (err) {
+        console.error("Failed to load wallets count:", (err && (err.message || err.details)) || err);
+        el.textContent = "—";
+      }
+    }
+
+    async function loadHeroTokensCount() {
+      const el = document.getElementById("heroTokensCount");
+      if (!el) return;
+      try {
+        const { count, error } = await sb.from("tokens").select("*", { count: "exact", head: true });
+        if (error) throw error;
+        el.textContent = count == null ? "—" : formatCount(count);
+      } catch (err) {
+        console.error("Failed to load tokens count:", (err && (err.message || err.details)) || err);
+        el.textContent = "—";
+      }
+    }
+
+    // "Volume indexed" = sum of every tracked token's 24h volume. Summed
+    // server-side via a PostgREST aggregate instead of fetching every token
+    // row to add the column up client-side -- stays cheap as the tokens
+    // table keeps growing via sync-tokens-discovery.
+    async function loadHeroVolumeIndexed() {
+      const el = document.getElementById("heroVolumeIndexed");
+      if (!el) return;
+      try {
+        const { data, error } = await sb.from("tokens").select("total:volume_24h.sum()");
+        if (error) throw error;
+        const total = data && data[0] ? Number(data[0].total) : NaN;
+        el.textContent = Number.isFinite(total) ? formatCompactUsd(total) : "—";
+      } catch (err) {
+        console.error("Failed to load volume indexed:", (err && (err.message || err.details)) || err);
+        el.textContent = "—";
+      }
+    }
+
+    loadHeroWalletsCount();
+    loadHeroTokensCount();
+    loadHeroVolumeIndexed();
 
     // ---- Launchpad filter (Trending) ----
     // "" (Semua) means no filter -- every token, tagged or not, same as the
