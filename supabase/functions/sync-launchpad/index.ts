@@ -36,16 +36,24 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const BLOCKSCOUT_BASE_URL = "https://robinhoodchain.blockscout.com";
 
-// Confirmed from each launchpad's own documentation (see issue #17 research
-// notes) -- not guessed or scraped from on-chain activity. Matched
-// case-insensitively since addresses are compared as lowercase hex.
+// Confirmed from each launchpad's own documentation, except Virtuals which
+// is confirmed empirically (see issue #17 research notes) -- not guessed or
+// scraped from on-chain activity. Matched case-insensitively since
+// addresses are compared as lowercase hex.
 const FACTORY_LAUNCHPADS: Record<string, string> = {
   // Pons (docs.ponsfamily.com) -- active factory
   "0xa5aab3f0c6eeadf30ef1d3eb997108e976351feb": "pons",
   // Pons (docs.ponsfamily.com) -- legacy factory
   "0x0c37a24f5d23a486fa692d1500881d698b1f77a4": "pons",
-  // Virtuals Protocol (whitepaper.virtuals.io) -- Robinhood Chain bonding curve
-  "0xd4ccbfa37e2f35611b3042e4096ad7a3459bd007": "virtuals",
+  // Virtuals Protocol -- Robinhood Chain BondingV5 proxy. Confirmed by
+  // looking up GTR (a known Virtuals agent token, address verified via
+  // app.virtuals.io) on Blockscout and reading its actual
+  // creator_address_hash -- NOT from documentation, which only publishes
+  // Base/Ethereum/Solana addresses. The previously-used
+  // 0xd4ccbfa37e2f35611b3042e4096ad7a3459bd007 is a different Virtuals
+  // proxy on the same chain (not the one that deploys tokens) and never
+  // matched any of the 451 tokens checked against it.
+  "0x43e4c17b15365596caae8e7d00e42bc8e988c2d4": "virtuals",
 };
 
 // Same field-name-uncertainty defense as sync-tokens/sync-transactions:
