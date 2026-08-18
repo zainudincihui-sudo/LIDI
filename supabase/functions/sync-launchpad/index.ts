@@ -15,18 +15,18 @@
 // A live run of sync-transactions hit WORKER_RESOURCE_LIMIT processing the
 // full ~342-row tokens table in one invoke even before adding any per-token
 // extra call, and was fixed by capping each invoke to a small batch
-// (TOKENS_PER_RUN) tracked via a round-robin cursor in `sync_cursors`. This
-// function follows the same pattern: every invoke only looks up creator
-// addresses for a handful of tokens, continuing from where the previous
-// invoke left off and wrapping back to the start once it reaches the end.
-// It cycles over the *whole* tokens table on every pass (not just
-// never-checked rows) rather than tracking a per-token "already checked"
-// flag -- deliberately simple, and it means a token also gets re-evaluated
-// automatically if the known factory address list grows later (e.g. once
-// Clanker's Robinhood Chain factory address is confirmed), without a
-// separate backfill run. The tradeoff is repeat lookups for tokens whose
-// launchpad is already settled; at TOKENS_PER_RUN tokens per 5-minute cron
-// tick that's an acceptable amount of waste for a background tagging job.
+// (TOKENS_PER_RUN). This function follows the same "small batch per
+// invoke" idea, but orders its queue by `tokens.launchpad_checked_at`
+// (NULL/never-checked first, then least-recently-checked) instead of a
+// persisted id cursor: every invoke re-writes `launchpad_checked_at` on
+// the rows it processes, so those rows naturally sort to the back of the
+// queue on the next invoke. This means never-checked tokens (new rows from
+// sync-tokens) always get looked at before any already-classified token is
+// re-checked, while still eventually cycling back around to every row --
+// e.g. once Clanker's Robinhood Chain factory address is confirmed and
+// added to FACTORY_LAUNCHPADS, existing no-match tokens get re-evaluated
+// without a separate backfill run, just on a much longer cycle than brand
+// new tokens.
 //
 // Triggered on a schedule via pg_cron (see supabase/migrations), and can
 // also be invoked manually for testing:
@@ -59,7 +59,6 @@ const CREATOR_FIELDS = ["creator_address_hash", "creator_address"];
 // stays at least as cheap per invoke while still erring conservative given
 // the prior WORKER_RESOURCE_LIMIT hit.
 const TOKENS_PER_RUN = 10;
-const CURSOR_NAME = "sync-launchpad";
 
 interface BlockscoutItem {
   [key: string]: unknown;
@@ -97,58 +96,19 @@ async function fetchCreatorAddress(contractAddress: string): Promise<string | nu
   return typeof creator === "string" && creator.length > 0 ? creator : null;
 }
 
+// Selects the next batch to check: NULL `launchpad_checked_at` (never
+// checked) sorts first, then oldest-checked next, so new tokens always get
+// priority over re-checking settled ones -- see the file-level comment.
 // deno-lint-ignore no-explicit-any
-async function loadCursor(supabase: any): Promise<string | null> {
+async function loadNextTokenBatch(supabase: any): Promise<TokenRow[]> {
   const { data, error } = await supabase
-    .from("sync_cursors")
-    .select("last_token_id")
-    .eq("cursor_name", CURSOR_NAME)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load sync cursor: ${error.message}`);
-  return (data?.last_token_id as string | undefined) ?? null;
-}
-
-// deno-lint-ignore no-explicit-any
-async function saveCursor(supabase: any, lastTokenId: string): Promise<void> {
-  const { error } = await supabase
-    .from("sync_cursors")
-    .upsert(
-      { cursor_name: CURSOR_NAME, last_token_id: lastTokenId, updated_at: new Date().toISOString() },
-      { onConflict: "cursor_name" },
-    );
-  if (error) throw new Error(`Failed to save sync cursor: ${error.message}`);
-}
-
-// Same batch-with-wraparound traversal as sync-transactions' loadNextTokenBatch.
-// deno-lint-ignore no-explicit-any
-async function loadNextTokenBatch(supabase: any, afterId: string | null): Promise<TokenRow[]> {
-  let query = supabase
     .from("tokens")
     .select("id,contract_address")
+    .order("launchpad_checked_at", { ascending: true, nullsFirst: true })
     .order("id", { ascending: true })
     .limit(TOKENS_PER_RUN);
-  if (afterId) query = query.gt("id", afterId);
-
-  const { data, error } = await query;
   if (error) throw new Error(`Failed to load tokens: ${error.message}`);
-  let rows = (data ?? []) as TokenRow[];
-
-  if (afterId && rows.length < TOKENS_PER_RUN) {
-    const remaining = TOKENS_PER_RUN - rows.length;
-    const seenIds = rows.map((row) => row.id);
-    let wrapQuery = supabase
-      .from("tokens")
-      .select("id,contract_address")
-      .order("id", { ascending: true })
-      .limit(remaining);
-    if (seenIds.length > 0) wrapQuery = wrapQuery.not("id", "in", `(${seenIds.join(",")})`);
-
-    const { data: wrapData, error: wrapError } = await wrapQuery;
-    if (wrapError) throw new Error(`Failed to load wrap-around tokens: ${wrapError.message}`);
-    rows = rows.concat((wrapData ?? []) as TokenRow[]);
-  }
-
-  return rows;
+  return (data ?? []) as TokenRow[];
 }
 
 Deno.serve(async (_req) => {
@@ -162,8 +122,7 @@ Deno.serve(async (_req) => {
     }
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const cursorBefore = await loadCursor(supabase);
-    const tokens = await loadNextTokenBatch(supabase, cursorBefore);
+    const tokens = await loadNextTokenBatch(supabase);
 
     let matchedPons = 0;
     let matchedVirtuals = 0;
@@ -180,7 +139,11 @@ Deno.serve(async (_req) => {
           `[sync-launchpad] failed to fetch creator address for ${token.contract_address}: ` +
             `${err instanceof Error ? err.message : String(err)}`,
         );
-        continue; // leave this token's launchpad untouched; retried next cycle
+        // Deliberately don't touch launchpad_checked_at here: a fetch
+        // failure means this token wasn't actually checked, so it should
+        // stay at the front of the queue for a retry next invoke instead
+        // of rotating to the back as if it had been.
+        continue;
       }
 
       const launchpad = classifyLaunchpad(creatorAddress);
@@ -190,24 +153,13 @@ Deno.serve(async (_req) => {
 
       const { error } = await supabase
         .from("tokens")
-        .update({ launchpad })
+        .update({ launchpad, launchpad_checked_at: new Date().toISOString() })
         .eq("id", token.id);
       if (error) throw new Error(`Failed to update launchpad for token ${token.id}: ${error.message}`);
     }
 
-    // Advance the cursor only after the whole run succeeds, so a failure
-    // partway through retries the same batch next invoke instead of
-    // silently skipping it.
-    let cursorAfter = cursorBefore;
-    if (tokens.length > 0) {
-      cursorAfter = tokens[tokens.length - 1].id;
-      await saveCursor(supabase, cursorAfter);
-    }
-
     const summary = {
       ok: true,
-      cursor_before: cursorBefore,
-      cursor_after: cursorAfter,
       tokens_processed: tokens.length,
       tokens_per_run_cap: TOKENS_PER_RUN,
       matched_pons: matchedPons,

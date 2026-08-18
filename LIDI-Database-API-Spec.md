@@ -68,6 +68,7 @@ Kenapa dibutuhkan: ini yang mengisi fitur "Trending Tokens".
 | `icon_url` | string, nullable | URL logo/icon token |
 | `decimals` | integer, nullable | Jumlah desimal token (mis. 18 untuk kebanyakan ERC-20) -- dipakai sync-transactions sebagai fallback saat payload transfer dari Blockscout tidak menyertakan `total.decimals` |
 | `launchpad` | string, nullable | Launchpad/factory yang men-deploy token ini (`pons`, `virtuals`), diisi oleh sync-launchpad berdasarkan alamat deployer kontrak. `NULL` kalau deployer tidak cocok dengan launchpad manapun yang dikenal (lihat issue #17) |
+| `launchpad_checked_at` | timestamp, nullable | Kolom internal untuk sync-launchpad: kapan terakhir kali `launchpad` token ini dicek/diklasifikasi. `NULL` = belum pernah dicek (diprioritaskan duluan). Bukan untuk ditampilkan di UI |
 
 ### 1.4 `transactions` — catatan setiap transaksi on-chain
 
