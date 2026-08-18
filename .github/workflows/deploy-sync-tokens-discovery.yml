@@ -1,0 +1,108 @@
+name: Deploy sync-tokens-discovery to Supabase
+
+# Manual trigger only. Run this from the Actions tab after adding the
+# SUPABASE_ACCESS_TOKEN secret (Settings > Secrets and variables > Actions).
+#
+# GitHub-hosted runners have normal internet access, unlike some sandboxed
+# dev environments, so this is the reliable way to actually reach the
+# Supabase Management API / Postgres and deploy sync-tokens-discovery for
+# real.
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Resolve service role key
+        id: keys
+        run: |
+          set -euo pipefail
+          KEY=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true" \
+            | jq -r '.[] | select(.name=="service_role") | .api_key')
+          if [ -z "$KEY" ] || [ "$KEY" = "null" ]; then
+            echo "Could not resolve the service_role API key from the Management API" >&2
+            exit 1
+          fi
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Store service role key in Vault (for pg_cron)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          SQL="do \$\$
+          declare
+            v_id uuid;
+          begin
+            select id into v_id from vault.secrets where name = 'sync_tokens_discovery_service_role_key';
+            if v_id is null then
+              perform vault.create_secret('$SERVICE_ROLE_KEY', 'sync_tokens_discovery_service_role_key');
+            else
+              perform vault.update_secret(v_id, '$SERVICE_ROLE_KEY');
+            end if;
+          end \$\$;"
+          PAYLOAD=$(jq -n --arg q "$SQL" '{query: $q}')
+          RESP=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n1)
+          echo "$BODY"
+          if [ "$CODE" -ge 300 ]; then
+            echo "Vault secret upsert failed with HTTP $CODE" >&2
+            exit 1
+          fi
+
+      - name: Push migrations
+        run: supabase db push --yes
+
+      - name: Deploy sync-tokens-discovery function
+        run: supabase functions deploy sync-tokens-discovery --project-ref "$PROJECT_REF" --use-api --yes
+
+      - name: Invoke sync-tokens-discovery (manual test)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          curl -sS -X POST "https://$PROJECT_REF.supabase.co/functions/v1/sync-tokens-discovery" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -o invoke-result.json -w '\nHTTP %{http_code}\n'
+          cat invoke-result.json
+
+      - name: Read back tokens table (sample with real activity)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          curl -sS "https://$PROJECT_REF.supabase.co/rest/v1/tokens?select=ticker,contract_address,volume_24h,holder_count&or=(volume_24h.gt.0,holder_count.gt.0)&order=volume_24h.desc&limit=10" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -o tokens-discovery-sample.json
+          cat tokens-discovery-sample.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-tokens-discovery-deploy-results
+          path: |
+            invoke-result.json
+            tokens-discovery-sample.json
