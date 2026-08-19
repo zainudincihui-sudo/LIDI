@@ -4,6 +4,17 @@
 -- first table in LIDI holding personal per-account data, so RLS is
 -- intentionally strict: authenticated users can only see and manage their
 -- own rows, and anon has no grant on this table at all.
+--
+-- This migration originally failed to deploy with "relation follows
+-- already exists" -- a public.follows table predating this PR was already
+-- live on the project (id, user_id, wallet_id, created_at only -- no
+-- token_id, so it never supported following a token; no FK on user_id
+-- either). Checked directly in the Supabase SQL Editor before touching
+-- anything: row_count = 0, so it's an unused leftover from before the
+-- email-auth system existed, not live data. Safe to drop and recreate
+-- with the schema below.
+drop table if exists public.follows;
+
 create table public.follows (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
