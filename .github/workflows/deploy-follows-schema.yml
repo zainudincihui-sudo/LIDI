@@ -1,0 +1,91 @@
+name: Deploy follows schema to Supabase
+
+# Manual trigger only. Run this from the Actions tab after adding the
+# SUPABASE_ACCESS_TOKEN secret (Settings > Secrets and variables > Actions).
+#
+# GitHub-hosted runners have normal internet access, unlike some sandboxed
+# dev environments, so this is the reliable way to actually reach the
+# Supabase Management API / Postgres and deploy this for real.
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Resolve API keys
+        id: keys
+        run: |
+          set -euo pipefail
+          KEYS=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true")
+          SERVICE_KEY=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key')
+          ANON_KEY=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
+          if [ -z "$SERVICE_KEY" ] || [ "$SERVICE_KEY" = "null" ]; then
+            echo "Could not resolve the service_role API key from the Management API" >&2
+            exit 1
+          fi
+          if [ -z "$ANON_KEY" ] || [ "$ANON_KEY" = "null" ]; then
+            echo "Could not resolve the anon API key from the Management API" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          echo "::add-mask::$ANON_KEY"
+          echo "service_key=$SERVICE_KEY" >> "$GITHUB_OUTPUT"
+          echo "anon_key=$ANON_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Push migrations
+        run: supabase db push --yes
+
+      - name: Verify follows table is reachable with service_role
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl -sS -o follows-service-role.json -w '%{http_code}' \
+            "https://$PROJECT_REF.supabase.co/rest/v1/follows?select=id&limit=1" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY")
+          cat follows-service-role.json
+          echo "HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 300 ]; then
+            echo "service_role could not read the follows table" >&2
+            exit 1
+          fi
+
+      - name: Verify RLS blocks the anon key (this is personal data)
+        env:
+          ANON_KEY: ${{ steps.keys.outputs.anon_key }}
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl -sS -o follows-anon.json -w '%{http_code}' \
+            "https://$PROJECT_REF.supabase.co/rest/v1/follows?select=id&limit=1" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer $ANON_KEY")
+          cat follows-anon.json
+          echo "HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" -lt 300 ]; then
+            echo "anon was able to query follows -- it should have no grant on this table at all" >&2
+            exit 1
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: follows-schema-deploy-results
+          path: |
+            follows-service-role.json
+            follows-anon.json

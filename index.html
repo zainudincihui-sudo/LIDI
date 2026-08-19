@@ -1690,10 +1690,10 @@
         <p>LIDI displays publicly available on-chain data — wallet addresses, balances, and transactions that are already visible on Robinhood Chain. This data is not private; we index and organize it, but we don't control or own it.</p>
 
         <h3>3. Information we collect</h3>
-        <p>We may collect basic usage data (such as pages visited or features used) to understand how LIDI is used and to improve it. We do not sell personal data to third parties.</p>
+        <p>We may collect basic usage data (such as pages visited or features used) to understand how LIDI is used and to improve it. We do not sell personal data to third parties. If you sign in with your email (via a passwordless magic link), we store your email address and the wallets or tokens you choose to follow, so your preferences and alerts persist across sessions and devices.</p>
 
         <h3>4. Cookies & local storage</h3>
-        <p>LIDI uses local storage in your browser to remember preferences like followed wallets or active tabs. This stays on your device and is never linked to a wallet or identity.</p>
+        <p>LIDI uses local storage in your browser to remember preferences like active tabs. This stays on your device. Wallets and tokens you follow while signed in are stored in your account instead (see Section 3), not in local storage.</p>
 
         <h3>5. Third-party services</h3>
         <p>LIDI may rely on third-party infrastructure (such as blockchain indexers or analytics providers) to operate. These providers only receive the minimum data needed to function.</p>
@@ -1847,39 +1847,9 @@
       navEl.classList.toggle("scrolled", window.scrollY > 8);
     }, { passive: true });
 
-    // ---- Follow & Alerts (in-memory, session only) ----
-    const followed = new Set();
+    // ---- Alerts panel (empty until PR 3-4 of the Follow & Alerts series
+    // land alert rules + real alert detection) ----
     const alerts = [];
-
-    const sampleEvents = [
-      name => `${name} bought $LIDI · 3.1 SOL`,
-      name => `${name} bought $FROG · 0.9 SOL`,
-      name => `${name} sold 40% of $CAT`,
-      name => `${name} opened a new position`,
-    ];
-
-    function toggleFollow(btn, name) {
-      const isFollowing = followed.has(name);
-
-      document.querySelectorAll(`.follow-btn[onclick*="'${name}'"]`).forEach(b => {
-        b.classList.toggle("following", !isFollowing);
-        b.textContent = !isFollowing ? "Following" : "+ Follow";
-      });
-
-      if (isFollowing) {
-        followed.delete(name);
-      } else {
-        followed.add(name);
-        const line = sampleEvents[Math.floor(Math.random() * sampleEvents.length)](name);
-        addAlert(`Now following ${name}`, "You'll get alerts on their next on-chain moves.");
-        setTimeout(() => addAlert(name, line), 1200);
-      }
-    }
-
-    function addAlert(title, body) {
-      alerts.unshift({ title, body, time: "just now" });
-      renderAlerts();
-    }
 
     function renderAlerts() {
       const list = document.getElementById("alertsList");
@@ -2169,7 +2139,68 @@
       currentUser = session ? session.user : null;
       updateAuthUI();
       if (session) closeAuthModal();
+      loadFollowedWalletIds();
     });
+
+    // ---- Follow (Supabase-backed, requires sign-in) ----
+    let followedWalletIds = new Set();
+
+    async function loadFollowedWalletIds() {
+      if (!currentUser) {
+        followedWalletIds = new Set();
+        refreshFollowButtonsUI();
+        return;
+      }
+      try {
+        // RLS already scopes this to the signed-in user's own rows.
+        const { data, error } = await sb.from("follows").select("wallet_id");
+        if (error) throw error;
+        followedWalletIds = new Set((data || []).filter(row => row.wallet_id).map(row => row.wallet_id));
+      } catch (err) {
+        console.error("Failed to load follows:", (err && (err.message || err.details)) || err);
+        followedWalletIds = new Set();
+      }
+      refreshFollowButtonsUI();
+    }
+
+    function refreshFollowButtonsUI() {
+      document.querySelectorAll(".follow-btn[data-wallet-id]").forEach(btn => {
+        const isFollowing = followedWalletIds.has(btn.dataset.walletId);
+        btn.classList.toggle("following", isFollowing);
+        btn.textContent = isFollowing ? "Following" : "+ Follow";
+      });
+    }
+
+    // Assigned directly on window (rather than a plain function declaration)
+    // because it's an async function invoked from an inline onclick= attribute,
+    // which runs in global scope -- async function declarations inside this
+    // block don't get the legacy var-hoisting that plain functions get here.
+    window.toggleFollow = async function (btn, walletId) {
+      if (!currentUser) {
+        openAuthModal();
+        return;
+      }
+
+      const isFollowing = followedWalletIds.has(walletId);
+      btn.disabled = true;
+
+      try {
+        if (isFollowing) {
+          const { error } = await sb.from("follows").delete().eq("wallet_id", walletId);
+          if (error) throw error;
+          followedWalletIds.delete(walletId);
+        } else {
+          const { error } = await sb.from("follows").insert({ wallet_id: walletId });
+          if (error) throw error;
+          followedWalletIds.add(walletId);
+        }
+        refreshFollowButtonsUI();
+      } catch (err) {
+        console.error("Failed to update follow:", (err && (err.message || err.details)) || err);
+      } finally {
+        btn.disabled = false;
+      }
+    };
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => ({
@@ -2584,7 +2615,6 @@
       const isLoss = pnl < 0;
       const winRate = Number(wallet.win_rate) || 0;
       const searchTerms = escapeHtml(`${label} ${wallet.address || ""}`.toLowerCase());
-      const onclickName = label.replace(/'/g, "\\'");
 
       return `
         <article class="card wallet-card" data-search="${searchTerms}">
@@ -2594,7 +2624,7 @@
               <h3>${escapeHtml(label)}</h3>
               <div class="muted">${escapeHtml(truncateAddress(wallet.address))}</div>
             </div>
-            <button class="follow-btn" onclick="toggleFollow(this, '${onclickName}')">+ Follow</button>
+            <button class="follow-btn" data-wallet-id="${escapeHtml(wallet.id)}" onclick="toggleFollow(this, '${wallet.id}')">+ Follow</button>
           </div>
 
           <div class="stats">
@@ -2632,6 +2662,7 @@
           grid.innerHTML = defaultWalletsHtml;
           grid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
           status.textContent = "Live from Supabase";
+          refreshFollowButtonsUI();
         }
       } catch (err) {
         console.error("Failed to load smart wallets:", (err && (err.message || err.details)) || err);
@@ -2698,6 +2729,7 @@
       walletGrid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
       document.getElementById("emptyWallets").style.display = "none";
       document.getElementById("walletsStatus").textContent = "Live from Supabase";
+      refreshFollowButtonsUI();
 
       document.getElementById("searchStatus").textContent = "";
     }
@@ -2733,6 +2765,7 @@
         document.getElementById("emptyWallets").style.display = wallets.length === 0 ? "block" : "none";
         document.getElementById("walletsStatus").textContent =
           wallets.length ? `${wallets.length} wallet cocok` : `Tidak ada wallet untuk "${query}"`;
+        refreshFollowButtonsUI();
 
         document.getElementById("searchStatus").textContent =
           `${tokens.length} token · ${wallets.length} wallet cocok dengan "${query}"`;
@@ -2758,7 +2791,6 @@
       const isLoss = pnl < 0;
       const winRate = Number(wallet.win_rate) || 0;
       const totalTrades = Number(wallet.total_trades) || 0;
-      const onclickName = label.replace(/'/g, "\\'");
 
       return `
         <div class="lb-row">
@@ -2769,7 +2801,7 @@
             <div class="muted">${winRate.toFixed(0)}% win rate · ${totalTrades} trades</div>
           </div>
           <div class="lb-pnl${isLoss ? "" : " gradient"}"${isLoss ? ' style="color:var(--loss-text)"' : ""}>${formatPct(pnl)}</div>
-          <button class="follow-btn" onclick="toggleFollow(this, '${onclickName}')">+ Follow</button>
+          <button class="follow-btn" data-wallet-id="${escapeHtml(wallet.id)}" onclick="toggleFollow(this, '${wallet.id}')">+ Follow</button>
         </div>
       `;
     }
@@ -2795,6 +2827,7 @@
 
         grid.innerHTML = data.map((wallet, i) => leaderboardRowHtml(wallet, i + 1)).join("");
         status.textContent = "Top traders · 30D · Live from Supabase";
+        refreshFollowButtonsUI();
       } catch (err) {
         console.error("Failed to load leaderboard:", (err && (err.message || err.details)) || err);
         grid.innerHTML = `<div class="muted" style="padding:24px 0;">Couldn't load leaderboard. Please try again later.</div>`;
