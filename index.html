@@ -2022,18 +2022,32 @@
       }
     }
 
-    // "Volume indexed" = sum of every tracked token's 24h volume. Summed
-    // server-side via a PostgREST aggregate instead of fetching every token
-    // row to add the column up client-side -- stays cheap as the tokens
-    // table keeps growing via sync-tokens-discovery.
+    // "Volume indexed" = sum of every tracked token's 24h volume. PostgREST
+    // aggregate functions (e.g. `volume_24h.sum()`) are disabled by default
+    // on Supabase-hosted projects (db-aggregates-enabled=false), so summing
+    // server-side isn't reliably available -- it 400s and we'd always show
+    // the "—" fallback. Instead, page through just the one numeric column
+    // we need (never select("*")) and sum client-side; 1000 rows/request
+    // keeps this cheap even as the tokens table keeps growing via
+    // sync-tokens-discovery.
     async function loadHeroVolumeIndexed() {
       const el = document.getElementById("heroVolumeIndexed");
       if (!el) return;
       try {
-        const { data, error } = await sb.from("tokens").select("total:volume_24h.sum()");
-        if (error) throw error;
-        const total = data && data[0] ? Number(data[0].total) : NaN;
-        el.textContent = Number.isFinite(total) ? formatCompactUsd(total) : "—";
+        const pageSize = 1000;
+        let total = 0;
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await sb
+            .from("tokens")
+            .select("volume_24h")
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          for (const row of data || []) {
+            total += Number(row.volume_24h) || 0;
+          }
+          if (!data || data.length < pageSize) break;
+        }
+        el.textContent = formatCompactUsd(total);
       } catch (err) {
         console.error("Failed to load volume indexed:", (err && (err.message || err.details)) || err);
         el.textContent = "—";
