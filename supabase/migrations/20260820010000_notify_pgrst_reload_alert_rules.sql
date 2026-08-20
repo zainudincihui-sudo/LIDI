@@ -1,0 +1,21 @@
+-- deploy-alert-rules-schema.yml's first run failed at the verification step
+-- with PGRST205 "Could not find the table 'public.alert_rules' in the
+-- schema cache" (HTTP 404) -- `supabase db push` (previous migration,
+-- 20260820000000) applies DDL over a direct Postgres connection, which
+-- doesn't itself push a schema-reload notice to PostgREST the way changes
+-- made through the Supabase dashboard do. The table existed (that push
+-- reported success, and its migration is already recorded as applied) but
+-- PostgREST's in-memory schema cache didn't know about it yet when the very
+-- next step queried it a second later.
+--
+-- This is a separate migration rather than an edit to 20260820000000
+-- because that one is already recorded as applied in
+-- supabase_migrations.schema_migrations -- editing its contents wouldn't
+-- change what actually ran against the live database, since `db push`
+-- tracks applied migrations by version/filename and would just skip it
+-- again. A new migration is the only way to actually run this against the
+-- already-deployed table.
+--
+-- Every future migration that adds a table/column meant to be queried over
+-- the REST API should end with this same statement (see supabase/DEPLOY.md).
+notify pgrst, 'reload schema';
