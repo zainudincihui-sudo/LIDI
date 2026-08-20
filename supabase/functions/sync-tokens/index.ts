@@ -4,6 +4,13 @@
 // (public API, no key needed) and upserts it into the `tokens` table,
 // replacing the sample/demo rows that shipped with the frontend.
 //
+// Also appends to `token_price_history` (issue #12 item 1 real fix -- see
+// supabase/migrations/20260820060000_create_token_price_history_table.sql)
+// whenever a token's price_usd actually changed from the value already on
+// its `tokens` row, so recompute_wallet_performance() can look up a real
+// historical price near a transfer's occurred_at instead of only ever
+// knowing the current price.
+//
 // Triggered on a schedule via pg_cron (see supabase/migrations), and can
 // also be invoked manually for testing:
 //   supabase functions invoke sync-tokens
@@ -164,6 +171,30 @@ Deno.serve(async (_req) => {
     const rows = Array.from(rowsByAddress.values());
     const duplicatesSkipped = items.length - skipped - rows.length;
 
+    // Load each token's price_usd as it stood *before* this run's upsert,
+    // so we can tell afterwards whether the freshly-fetched price actually
+    // moved. See token_price_history (20260820060000): at this function's
+    // current 1-minute cron cadence, inserting a history row on every run
+    // regardless of movement would be on the order of `rows.length` rows
+    // every minute (~342 tokens today) for no extra precision, since the
+    // price is constant between two real changes anyway -- only a change
+    // needs its own row.
+    const previousPriceByAddress = new Map<string, number>();
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE).map((row) => row.contract_address);
+      const { data, error } = await supabase
+        .from("tokens")
+        .select("contract_address,price_usd")
+        .in("contract_address", batch);
+      if (error) throw new Error(`Failed to load existing prices: ${error.message}`);
+      for (const row of data ?? []) {
+        previousPriceByAddress.set(
+          String(row.contract_address).toLowerCase(),
+          toNumber(row.price_usd),
+        );
+      }
+    }
+
     let upserted = 0;
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
@@ -174,6 +205,22 @@ Deno.serve(async (_req) => {
       upserted += batch.length;
     }
 
+    // A token with no entry in previousPriceByAddress is one sync-tokens
+    // has never seen before (first time this contract_address was upserted)
+    // -- its price counts as "changed" so it gets a first history row too,
+    // rather than silently having no history until its price next moves.
+    const priceHistoryRows = rows
+      .filter((row) => previousPriceByAddress.get(row.contract_address.toLowerCase()) !== row.price_usd)
+      .map((row) => ({ token_address: row.contract_address, price_usd: row.price_usd }));
+
+    let priceHistoryInserted = 0;
+    for (let i = 0; i < priceHistoryRows.length; i += BATCH_SIZE) {
+      const batch = priceHistoryRows.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase.from("token_price_history").insert(batch);
+      if (error) throw new Error(`Price history insert failed: ${error.message}`);
+      priceHistoryInserted += batch.length;
+    }
+
     const summary = {
       ok: true,
       fetched: items.length,
@@ -181,6 +228,8 @@ Deno.serve(async (_req) => {
       upserted,
       skipped_missing_address: skipped,
       duplicates_skipped: duplicatesSkipped,
+      price_history_inserted: priceHistoryInserted,
+      price_history_unchanged: rows.length - priceHistoryRows.length,
       price_change_24h_field_found: priceChangeFieldFound,
       decimals_field_found: decimalsFieldFound,
       note: priceChangeFieldFound
