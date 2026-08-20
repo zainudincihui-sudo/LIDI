@@ -144,3 +144,13 @@ $$;
 
 revoke execute on function public.recompute_wallet_performance() from public;
 grant execute on function public.recompute_wallet_performance() to service_role;
+
+-- Same PGRST205/"column not found" trap documented in DEPLOY.md ("New
+-- tables need NOTIFY pgrst, 'reload schema'"), which broke the alert_rules
+-- deploy in PR 3: `supabase db push` applies this ALTER TABLE over a direct
+-- Postgres connection, which doesn't itself push a schema-reload notice to
+-- PostgREST. Without this, wallets.pnl_30d_reliable exists in the database
+-- but PostgREST keeps 404/column-not-found-ing requests that reference it
+-- (e.g. index.html's `.order("pnl_30d_reliable", ...)` on the Leaderboard
+-- and Smart Wallets queries) until its own periodic cache reload catches up.
+notify pgrst, 'reload schema';
