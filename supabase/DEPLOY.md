@@ -52,7 +52,8 @@ curl -X POST "https://ruatieohvdxjnmcfhqwh.supabase.co/functions/v1/sync-tokens"
 ```
 
 It returns a JSON summary (`fetched`, `upserted`, `skipped_missing_address`,
-`price_change_24h_field_found`). Then confirm the table actually changed:
+`price_change_24h_field_found`, `price_history_inserted`,
+`price_history_unchanged`). Then confirm the table actually changed:
 
 ```sql
 select contract_address, ticker, name, price_usd, volume_24h, holder_count, price_change_24h, icon_url
@@ -60,6 +61,41 @@ from tokens
 order by volume_24h desc
 limit 10;
 ```
+
+## `token_price_history` (issue #12 item 1 real fix)
+
+sync-tokens also appends to `token_price_history` (see
+`supabase/migrations/20260820060000_create_token_price_history_table.sql`),
+but only when a token's `price_usd` actually changed from what's already on
+its `tokens` row -- not on every run. At the 1-minute cron cadence
+(20260820050000), inserting unconditionally would be on the order of
+`fetched` rows every minute for no extra precision, since the price is
+constant between two real changes anyway. Verify it's populating:
+
+```sql
+select token_address, price_usd, recorded_at
+from token_price_history
+order by recorded_at desc
+limit 10;
+```
+
+`recompute_wallet_performance()` (see
+`20260820070000_wallet_performance_use_price_history.sql`) uses this table
+to look up the price closest to (at or before) each transfer's
+`occurred_at`, instead of trusting `transactions.value_usd`'s sync-time
+snapshot. To verify the fix actually improved precision after deploying,
+compare `wallets_pnl_30d_reliable` in the `recompute_wallet_performance`
+RPC response (or the `recompute-result.json` artifact from the "Deploy
+wallet performance recompute" workflow) against its value before this
+change -- it should go up, since real historical pricing produces bigger,
+less-noise-compressed `pnl_30d` swings that clear the 1% materiality
+threshold more often (see
+`20260820040000_flag_pnl_30d_reliability.sql`).
+
+A daily pg_cron job (`20260820080000_token_price_history_retention.sql`)
+prunes rows older than 60 days so this table doesn't grow unbounded --
+transactions older than that fall back to their stored `value_usd`, same as
+any transaction that predates this table entirely.
 
 ## About `price_change_24h`
 
