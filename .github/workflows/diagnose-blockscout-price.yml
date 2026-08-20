@@ -1,0 +1,79 @@
+name: Diagnose Blockscout price staleness
+
+# One-off diagnostic, not part of the normal deploy pipeline. Investigating
+# why token_price_history has recorded zero price changes across 5.5+ hours
+# of 1-minute sync-tokens polling since the PR #36/#37 fix (see issue #12
+# follow-up) -- exchange_rate for every checked token, including WETH (not
+# a stablecoin), has read byte-identical across dozens of fetches. This
+# hits Blockscout directly from a GitHub-hosted runner (which has normal
+# internet access, unlike the sandboxed dev environment -- see
+# supabase/DEPLOY.md) to see whether that's really what the upstream API is
+# returning, not an artifact introduced by sync-tokens or our diffing logic.
+#
+# Safe to delete once the investigation concludes -- it doesn't touch
+# Supabase or any deployed function, purely reads from Blockscout's public
+# API.
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch WETH token detail (call 1)
+        run: |
+          echo "=== WETH call 1 ==="
+          curl -sS "https://robinhoodchain.blockscout.com/api/v2/tokens/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" | tee weth-call1.json
+          echo
+
+      - name: Wait 20s
+        run: sleep 20
+
+      - name: Fetch WETH token detail (call 2, 20s later)
+        run: |
+          echo "=== WETH call 2 (20s later) ==="
+          curl -sS "https://robinhoodchain.blockscout.com/api/v2/tokens/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" | tee weth-call2.json
+          echo
+
+      - name: Diff WETH call 1 vs call 2
+        run: |
+          echo "=== Diff: WETH call 1 vs call 2 ==="
+          diff weth-call1.json weth-call2.json && echo "IDENTICAL (byte-for-byte)" || echo "DIFFERENT -- see diff above"
+
+      - name: Fetch JOHN (memecoin) token detail for comparison
+        run: |
+          echo "=== JOHN (memecoin) token detail ==="
+          curl -sS "https://robinhoodchain.blockscout.com/api/v2/tokens/0xE170dC96ca10103E0D4C5d9293C5A3A72Ee365a5" | tee john-call1.json
+          echo
+
+      - name: Fetch recent WETH transfers (are trades even happening?)
+        run: |
+          echo "=== Recent WETH transfers (first page) ==="
+          curl -sS "https://robinhoodchain.blockscout.com/api/v2/tokens/0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73/transfers" -o weth-transfers.json
+          python3 -c "
+          import json
+          data = json.load(open('weth-transfers.json'))
+          items = data.get('items', [])
+          print(f'transfer count on this page: {len(items)}')
+          for item in items[:5]:
+              print(json.dumps({k: item.get(k) for k in ('timestamp', 'total', 'from', 'to')}, default=str))
+          "
+
+      - name: Fetch token list page 1, locate WETH entry (what sync-tokens actually reads)
+        run: |
+          echo "=== Token list page 1 -- WETH entry as sync-tokens would see it ==="
+          curl -sS "https://robinhoodchain.blockscout.com/api/v2/tokens" -o tokens-list.json
+          python3 -c "
+          import json
+          data = json.load(open('tokens-list.json'))
+          items = data.get('items', [])
+          print(f'items on this page: {len(items)}')
+          target = '0x0bd7d308f8e1639fab988df18a8011f41eacad73'
+          for item in items:
+              addr = (item.get('address_hash') or item.get('address') or '').lower()
+              if addr == target:
+                  print(json.dumps(item, indent=2))
+                  break
+          else:
+              print('WETH not found on page 1 of the token list')
+          "
