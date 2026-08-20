@@ -3100,11 +3100,21 @@
       return (num < 0 ? "" : "+") + num.toFixed(1) + "%";
     }
 
+    // wallets.pnl_30d_reliable (see 20260820040000_flag_pnl_30d_reliability.sql)
+    // is false when pnl_30d is indistinguishable from sync-transactions'
+    // snapshot-pricing noise floor -- rendering it as a precise percentage in
+    // that case would show a number that looks meaningful but isn't. Render
+    // "Low data" instead so the UI doesn't overstate what's known.
+    function formatPnl30d(wallet) {
+      if (!wallet.pnl_30d_reliable) return { text: "Low data", isLoss: false, unreliable: true };
+      const pnl = Number(wallet.pnl_30d) || 0;
+      return { text: formatPct(pnl), isLoss: pnl < 0, unreliable: false };
+    }
+
     function walletCardHtml(wallet) {
       const label = (wallet.label || truncateAddress(wallet.address) || "Wallet").trim();
       const initials = label.replace(/^\$/, "").slice(0, 2).toUpperCase() || "??";
-      const pnl = Number(wallet.pnl_30d) || 0;
-      const isLoss = pnl < 0;
+      const pnlInfo = formatPnl30d(wallet);
       const winRate = Number(wallet.win_rate) || 0;
       const searchTerms = escapeHtml(`${label} ${wallet.address || ""}`.toLowerCase());
 
@@ -3122,7 +3132,7 @@
           <div class="stats">
             <div class="stat">
               <div class="muted">30D PnL</div>
-              <strong class="${isLoss ? "" : "gradient"}"${isLoss ? ' style="color:var(--loss-text)"' : ""}>${formatPct(pnl)}</strong>
+              <strong class="${pnlInfo.unreliable ? "muted" : (pnlInfo.isLoss ? "" : "gradient")}"${!pnlInfo.unreliable && pnlInfo.isLoss ? ' style="color:var(--loss-text)"' : ""}>${pnlInfo.text}</strong>
             </div>
             <div class="stat">
               <div class="muted">Win rate</div>
@@ -3141,6 +3151,7 @@
         const { data, error } = await sb
           .from("wallets")
           .select("*")
+          .order("pnl_30d_reliable", { ascending: false })
           .order("pnl_30d", { ascending: false, nullsFirst: false })
           .limit(12);
 
@@ -3198,8 +3209,8 @@
     async function searchWalletsInDb(query) {
       const pattern = `%${escapeLikePattern(query)}%`;
       const [byAddress, byLabel] = await Promise.all([
-        sb.from("wallets").select("*").ilike("address", pattern).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
-        sb.from("wallets").select("*").ilike("label", pattern).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
+        sb.from("wallets").select("*").ilike("address", pattern).order("pnl_30d_reliable", { ascending: false }).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
+        sb.from("wallets").select("*").ilike("label", pattern).order("pnl_30d_reliable", { ascending: false }).order("pnl_30d", { ascending: false, nullsFirst: false }).limit(24),
       ]);
       if (byAddress.error) throw byAddress.error;
       if (byLabel.error) throw byLabel.error;
@@ -3279,8 +3290,7 @@
     function leaderboardRowHtml(wallet, rank) {
       const label = (wallet.label || truncateAddress(wallet.address) || "Wallet").trim();
       const initials = label.replace(/^\$/, "").slice(0, 2).toUpperCase() || "??";
-      const pnl = Number(wallet.pnl_30d) || 0;
-      const isLoss = pnl < 0;
+      const pnlInfo = formatPnl30d(wallet);
       const winRate = Number(wallet.win_rate) || 0;
       const totalTrades = Number(wallet.total_trades) || 0;
 
@@ -3292,7 +3302,7 @@
             <h3>${escapeHtml(label)}</h3>
             <div class="muted">${winRate.toFixed(0)}% win rate · ${totalTrades} trades</div>
           </div>
-          <div class="lb-pnl${isLoss ? "" : " gradient"}"${isLoss ? ' style="color:var(--loss-text)"' : ""}>${formatPct(pnl)}</div>
+          <div class="lb-pnl${pnlInfo.unreliable ? " muted" : (pnlInfo.isLoss ? "" : " gradient")}"${!pnlInfo.unreliable && pnlInfo.isLoss ? ' style="color:var(--loss-text)"' : ""}>${pnlInfo.text}</div>
           <button class="follow-btn" data-wallet-id="${escapeHtml(wallet.id)}" onclick="toggleFollow(this, '${wallet.id}')">+ Follow</button>
         </div>
       `;
@@ -3306,6 +3316,7 @@
         const { data, error } = await sb
           .from("wallets")
           .select("*")
+          .order("pnl_30d_reliable", { ascending: false })
           .order("pnl_30d", { ascending: false, nullsFirst: false })
           .limit(10);
 

@@ -46,10 +46,13 @@ Kenapa dibutuhkan: ini jantungnya fitur "Smart Wallets" dan "Leaderboard".
 | `label` | string (opsional) | Nama panggilan seperti "AlphaWalker" |
 | `win_rate` | decimal | Persentase transaksi yang untung |
 | `pnl_30d` | decimal | Untung/rugi 30 hari terakhir |
+| `pnl_30d_reliable` | boolean | `false` kalau `pnl_30d` wallet ini kemungkinan cuma noise presisi harga (lihat catatan di bawah), bukan hasil trading yang sebenarnya |
 | `total_trades` | integer | Jumlah transaksi yang tercatat |
 | `last_active_at` | timestamp | Kapan terakhir wallet ini bertransaksi |
 
-> Catatan: kolom seperti `win_rate` dan `pnl_30d` **tidak diisi manual** — nanti dihitung otomatis oleh sistem berdasarkan data di tabel `transactions` (dijelaskan di bawah).
+> Catatan: kolom seperti `win_rate`, `pnl_30d`, dan `pnl_30d_reliable` **tidak diisi manual** — nanti dihitung otomatis oleh sistem berdasarkan data di tabel `transactions` (dijelaskan di bawah).
+>
+> Catatan tambahan soal `pnl_30d_reliable` (issue #12): `pnl_30d` dihitung dari `value_usd` transaksi, yang di-*price* pakai snapshot `tokens.price_usd` saat sync jalan — bukan harga sebenarnya saat transfer itu terjadi. Akibatnya nilai `pnl_30d` sering terkompresi nyaris nol secara artifisial, bukan mencerminkan hasil trading asli. `pnl_30d_reliable` jadi `true` hanya kalau magnitude `pnl_30d` cukup besar (≥1%) untuk dianggap bukan noise — Leaderboard & Smart Wallets sebaiknya pakai flag ini, bukan mengandalkan `pnl_30d` mentah.
 
 ### 1.3 `tokens` — daftar token/memecoin yang dipantau
 
