@@ -52,7 +52,7 @@ curl -X POST "https://ruatieohvdxjnmcfhqwh.supabase.co/functions/v1/sync-tokens"
 ```
 
 It returns a JSON summary (`fetched`, `upserted`, `skipped_missing_address`,
-`price_change_24h_field_found`, `price_history_inserted`,
+`decimals_field_found`, `price_history_inserted`,
 `price_history_unchanged`). Then confirm the table actually changed:
 
 ```sql
@@ -102,14 +102,32 @@ any transaction that predates this table entirely.
 Blockscout's `/api/v2/tokens` endpoint is a block-explorer API, not a price
 tracker — its documented schema (`address`/`address_hash`, `name`, `symbol`,
 `exchange_rate`, `volume_24h`, `holders`/`holders_count`) has no field for a
-24h percentage change as far as could be checked without live access. The
-function looks for a handful of likely field names anyway
-(`exchange_rate_percent_change`, `price_change_24h`,
-`price_change_percentage_24h`, `percent_change_24h`) and falls back to `0`
-if none are present, flagging that in its response
-(`price_change_24h_field_found: false`). If the response shows `false`,
-that confirms the field doesn't exist on this instance and `0` is what's
-being written for every row until a price-history source is added.
+24h percentage change, confirmed live in production (every row synced came
+back with no matching field, which is what made Trending's badge always
+show "+0.0%"). sync-tokens and sync-tokens-discovery no longer try to read
+or write this column at all — including a hardcoded `0` in every upsert
+was actively harmful, since it reset the column back to 0 on every
+1-minute sync-tokens run regardless of what had computed it in between.
+
+`tokens.price_change_24h` is now computed by
+`public.recompute_token_price_changes()`
+(`20260820090000_compute_token_price_change_24h.sql`), scheduled every 15
+minutes via pg_cron — same pattern as `recompute_wallet_performance()`. It
+compares the token's current `price_usd` against the closest
+`token_price_history` observation at or before 24 hours ago. Tokens without
+history reaching back that far (just discovered, or a very old row that's
+aged out of the 60-day retention window) get `price_change_24h_reliable =
+false` instead of a computed percentage — the frontend renders "Low data"
+for those rather than a `price_change_24h` of `0` that would read as "the
+price hasn't moved" when it actually means "not enough history yet". Verify
+it's populating real values:
+
+```sql
+select contract_address, ticker, price_usd, price_change_24h, price_change_24h_reliable
+from tokens
+order by price_change_24h_reliable desc, price_change_24h desc
+limit 10;
+```
 
 ## `icon_url`
 

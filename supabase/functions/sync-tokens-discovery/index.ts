@@ -50,12 +50,6 @@ const BLOCKSCOUT_TOKENS_URL =
 const ADDRESS_FIELDS = ["address_hash", "address", "contract_address_hash", "hash"];
 const HOLDERS_FIELDS = ["holders_count", "holders"];
 const DECIMALS_FIELDS = ["decimals", "token_decimals"];
-const PRICE_CHANGE_FIELDS = [
-  "exchange_rate_percent_change",
-  "price_change_24h",
-  "price_change_percentage_24h",
-  "percent_change_24h",
-];
 
 // Must match sync-tokens' MAX_PAGES: this is how many pages at the front of
 // Blockscout's token list sync-tokens already owns and refreshes every 5
@@ -88,7 +82,6 @@ interface TokenRow {
   price_usd: number;
   volume_24h: number;
   holder_count: number;
-  price_change_24h: number;
   icon_url: string | null;
   decimals: number | null;
 }
@@ -130,9 +123,13 @@ function tokenRowFromItem(item: BlockscoutTokenItem): TokenRow | null {
   const address = firstDefined(item, ADDRESS_FIELDS);
   if (typeof address !== "string" || address.length === 0) return null;
 
-  const priceChangeRaw = firstDefined(item, PRICE_CHANGE_FIELDS);
   const decimalsRaw = firstDefined(item, DECIMALS_FIELDS);
 
+  // price_change_24h is deliberately not set here -- same reasoning as
+  // sync-tokens/index.ts: Blockscout's token list has never carried a real
+  // 24h-change field on this instance, and recompute_token_price_changes()
+  // (20260820090000_compute_token_price_change_24h.sql) now owns that
+  // column, computed from token_price_history.
   return {
     contract_address: address,
     name: typeof item.name === "string" ? item.name : "",
@@ -140,7 +137,6 @@ function tokenRowFromItem(item: BlockscoutTokenItem): TokenRow | null {
     price_usd: toNumber(item.exchange_rate),
     volume_24h: toNumber(item.volume_24h),
     holder_count: Math.trunc(toNumber(firstDefined(item, HOLDERS_FIELDS))),
-    price_change_24h: toNumber(priceChangeRaw),
     icon_url: typeof item.icon_url === "string" ? item.icon_url : null,
     decimals: decimalsRaw !== undefined ? Math.trunc(toNumber(decimalsRaw)) : null,
   };

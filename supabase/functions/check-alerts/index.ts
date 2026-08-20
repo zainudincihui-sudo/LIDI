@@ -29,6 +29,13 @@
 // e.g. only firing on a *new* threshold crossing) and could be refined
 // later.
 //
+// Rules on a token whose price_change_24h_reliable is false are skipped
+// entirely (see 20260820090000_compute_token_price_change_24h.sql):
+// price_change_24h reads as 0 for those tokens because there isn't yet 24h
+// of token_price_history to compute a real change from, not because the
+// price is genuinely flat -- firing (or not firing) a threshold alert off
+// that placeholder zero would be meaningless either way.
+//
 // Triggered on a schedule via pg_cron (see supabase/migrations), and can
 // also be invoked manually for testing:
 //   supabase functions invoke check-alerts
@@ -73,6 +80,7 @@ interface TokenPriceRow {
   ticker: string | null;
   name: string | null;
   price_change_24h: number | null;
+  price_change_24h_reliable: boolean | null;
 }
 
 function walletLabel(wallet: WalletLike | null): string {
@@ -190,7 +198,7 @@ Deno.serve(async (_req) => {
       const tokenIds = Array.from(new Set(priceRules.map((r) => r.token_id as string)));
       const { data: tokenData, error: tokenError } = await supabase
         .from("tokens")
-        .select("id, ticker, name, price_change_24h")
+        .select("id, ticker, name, price_change_24h, price_change_24h_reliable")
         .in("id", tokenIds);
       if (tokenError) throw new Error(`Failed to load tokens: ${tokenError.message}`);
       const tokenById = new Map(
@@ -203,7 +211,7 @@ Deno.serve(async (_req) => {
 
       for (const rule of priceRules) {
         const token = tokenById.get(rule.token_id as string);
-        if (!token) continue;
+        if (!token || !token.price_change_24h_reliable) continue;
 
         const change = Number(token.price_change_24h) || 0;
         const meetsCondition = rule.direction === "up" ? change >= rule.threshold : change <= -rule.threshold;

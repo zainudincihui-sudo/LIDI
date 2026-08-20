@@ -67,11 +67,14 @@ Kenapa dibutuhkan: ini yang mengisi fitur "Trending Tokens".
 | `price_usd` | decimal | Harga saat ini |
 | `volume_24h` | decimal | Volume transaksi 24 jam |
 | `holder_count` | integer | Jumlah pemegang token |
-| `price_change_24h` | decimal | Persentase naik/turun harga |
+| `price_change_24h` | decimal | Persentase naik/turun harga dalam 24 jam terakhir |
+| `price_change_24h_reliable` | boolean | `false` kalau token ini belum punya histori harga (`token_price_history`) yang cukup jauh ke belakang (≥24 jam) untuk dihitung, jadi `price_change_24h` cuma placeholder `0` -- bukan berarti harganya benar-benar tidak bergerak (lihat catatan di bawah) |
 | `icon_url` | string, nullable | URL logo/icon token |
 | `decimals` | integer, nullable | Jumlah desimal token (mis. 18 untuk kebanyakan ERC-20) -- dipakai sync-transactions sebagai fallback saat payload transfer dari Blockscout tidak menyertakan `total.decimals` |
 | `launchpad` | string, nullable | Launchpad/factory yang men-deploy token ini (`pons`, `virtuals`), diisi oleh sync-launchpad berdasarkan alamat deployer kontrak. `NULL` kalau deployer tidak cocok dengan launchpad manapun yang dikenal (lihat issue #17) |
 | `launchpad_checked_at` | timestamp, nullable | Kolom internal untuk sync-launchpad: kapan terakhir kali `launchpad` token ini dicek/diklasifikasi. `NULL` = belum pernah dicek (diprioritaskan duluan). Bukan untuk ditampilkan di UI |
+
+> Catatan soal `price_change_24h` / `price_change_24h_reliable`: kolom ini **tidak** diisi dari Blockscout -- endpoint token list Blockscout tidak pernah punya field persentase perubahan 24 jam di instance ini, jadi sync-tokens/sync-tokens-discovery tidak menulisnya sama sekali. `price_change_24h` dihitung sendiri oleh fungsi `recompute_token_price_changes()` (dijadwalkan tiap 15 menit lewat pg_cron, pola sama seperti `recompute_wallet_performance()`), dengan membandingkan `price_usd` sekarang terhadap harga di `token_price_history` yang paling dekat dengan (pada atau sebelum) 24 jam lalu. Token yang histori harganya belum mencapai 24 jam ke belakang mendapat `price_change_24h_reliable = false` -- frontend menampilkan "Low data" untuk kasus ini, bukan "+0.0%" yang menyesatkan (pola sama seperti `pnl_30d_reliable` di atas).
 
 ### 1.4 `transactions` — catatan setiap transaksi on-chain
 
