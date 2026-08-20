@@ -773,38 +773,8 @@
 
     .tabs::-webkit-scrollbar { display: none; }
 
-    .tab-legend {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px 16px;
-      padding: 0 0 6px;
-    }
-
-    .tab-legend-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 7px;
-    }
-
-    .tab-legend-item svg {
-      width: 15px;
-      height: 15px;
-      margin-top: 2px;
-      color: var(--muted);
-      flex: 0 0 auto;
-    }
-
-    .tab-legend-item span {
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--muted);
-    }
-
-    .tab-legend-item strong {
-      display: block;
-      color: var(--ink);
-      font-weight: 800;
-      font-size: 12.5px;
+    .tab-caption {
+      margin-top: 4px;
     }
 
     .tab {
@@ -1552,7 +1522,6 @@
       .hero-stat strong { font-size: 20px; }
       .grid { grid-template-columns: 1fr; }
       .how-grid { grid-template-columns: 1fr; }
-      .tab-legend { grid-template-columns: 1fr 1fr; }
       .explore-btn { height: 50px; }
       .footer-top { grid-template-columns: 1fr 1fr; }
       .footer-brand { grid-column: 1 / -1; margin-bottom: 10px; }
@@ -1781,30 +1750,12 @@
         <button class="tab" data-view="activity" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-zap"/></svg>Activity</button>
       </div>
 
-      <div class="tab-legend">
-        <div class="tab-legend-item">
-          <svg class="icon"><use href="#icon-flame"/></svg>
-          <span><strong>Trending</strong> Tokens with the highest volume &amp; activity in the last 24h</span>
-        </div>
-        <div class="tab-legend-item">
-          <svg class="icon"><use href="#icon-eye"/></svg>
-          <span><strong>Smart Wallets</strong> Top-performing wallets you can follow</span>
-        </div>
-        <div class="tab-legend-item">
-          <svg class="icon"><use href="#icon-trophy"/></svg>
-          <span><strong>Leaderboard</strong> Wallets ranked by win rate &amp; profit</span>
-        </div>
-        <div class="tab-legend-item">
-          <svg class="icon"><use href="#icon-zap"/></svg>
-          <span><strong>Activity</strong> Live transactions streaming across the chain</span>
-        </div>
-      </div>
-
       <!-- TRENDING -->
       <section class="view active" id="view-trending">
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-flame"/></svg>Trending</h2>
+            <div class="muted tab-caption">Tokens with the highest volume &amp; activity in the last 24h</div>
             <div class="muted" id="trendingStatus">Loading live data…</div>
           </div>
           <div class="muted">24h</div>
@@ -1828,6 +1779,7 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-eye"/></svg>Smart Wallets</h2>
+            <div class="muted tab-caption">Top-performing wallets you can follow</div>
             <div class="muted" id="walletsStatus">Loading live data…</div>
           </div>
         </div>
@@ -1846,6 +1798,7 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-trophy"/></svg>Leaderboard</h2>
+            <div class="muted tab-caption">Wallets ranked by win rate &amp; profit</div>
             <div class="muted" id="leaderboardStatus">Loading live data…</div>
           </div>
         </div>
@@ -1858,6 +1811,7 @@
         <div class="section-heading">
           <div>
             <h2><svg class="icon section-icon"><use href="#icon-zap"/></svg>Live Activity</h2>
+            <div class="muted tab-caption">Live transactions streaming across the chain</div>
             <div class="muted" id="activityStatus">Loading live activity…</div>
           </div>
         </div>
