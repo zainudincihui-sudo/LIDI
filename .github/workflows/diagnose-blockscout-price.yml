@@ -15,6 +15,14 @@ name: Diagnose Blockscout price staleness
 # API.
 on:
   workflow_dispatch:
+  # workflow_dispatch only becomes callable via the API/UI once the workflow
+  # file exists on the default branch (a GitHub Actions quirk), which this
+  # diagnostic-only branch deliberately isn't merged into. `push` on this
+  # branch has no such registration requirement, so it's the trigger that
+  # actually fires this run.
+  push:
+    branches:
+      - claude/diagnose-blockscout-price
 
 jobs:
   diagnose:
