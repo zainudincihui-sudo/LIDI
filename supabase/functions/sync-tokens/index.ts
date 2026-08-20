@@ -9,7 +9,13 @@
 // whenever a token's price_usd actually changed from the value already on
 // its `tokens` row, so recompute_wallet_performance() can look up a real
 // historical price near a transfer's occurred_at instead of only ever
-// knowing the current price.
+// knowing the current price. That same table now also feeds
+// recompute_token_price_changes() (see
+// supabase/migrations/20260820090000_compute_token_price_change_24h.sql),
+// which is why this function does NOT write tokens.price_change_24h itself
+// -- Blockscout's token list has never carried a real 24h-change field on
+// this instance, and writing a hardcoded 0 into that column on every
+// 1-minute run is exactly what made Trending's badge always show "+0.0%".
 //
 // Triggered on a schedule via pg_cron (see supabase/migrations), and can
 // also be invoked manually for testing:
@@ -31,17 +37,6 @@ const HOLDERS_FIELDS = ["holders_count", "holders"];
 // payload doesn't carry its own `total.decimals` (see issue #12) -- so it's
 // worth trying a couple of names here too rather than only the obvious one.
 const DECIMALS_FIELDS = ["decimals", "token_decimals"];
-// Candidate field names for a 24h price-change percentage. Blockscout's
-// token-list endpoint is not known to expose one (it's a block explorer,
-// not a price tracker) — these are checked just in case this instance adds
-// it, and we fall back to 0 with a warning in the response if none exist.
-const PRICE_CHANGE_FIELDS = [
-  "exchange_rate_percent_change",
-  "price_change_24h",
-  "price_change_percentage_24h",
-  "percent_change_24h",
-];
-
 const MAX_PAGES = 10; // safety cap so a runaway paginated response can't run forever
 const BATCH_SIZE = 500;
 // Deliberately much smaller than BATCH_SIZE: this one is only for the
@@ -71,7 +66,6 @@ interface TokenRow {
   price_usd: number;
   volume_24h: number;
   holder_count: number;
-  price_change_24h: number;
   icon_url: string | null;
   // Null (not 0) when Blockscout's item has no decimals field at all, so
   // downstream fallback logic (sync-transactions' extractAmount()) can tell
@@ -142,7 +136,6 @@ Deno.serve(async (_req) => {
 
     const { items, pages } = await fetchAllTokens();
 
-    let priceChangeFieldFound = false;
     let decimalsFieldFound = false;
     let skipped = 0;
     // Keyed by lowercased address: a live run showed Blockscout can return
@@ -159,12 +152,15 @@ Deno.serve(async (_req) => {
         continue;
       }
 
-      const priceChangeRaw = firstDefined(item, PRICE_CHANGE_FIELDS);
-      if (priceChangeRaw !== undefined) priceChangeFieldFound = true;
-
       const decimalsRaw = firstDefined(item, DECIMALS_FIELDS);
       if (decimalsRaw !== undefined) decimalsFieldFound = true;
 
+      // price_change_24h is deliberately not set here -- see the file-level
+      // comment above and 20260820090000_compute_token_price_change_24h.sql.
+      // Blockscout's token list has never carried a 24h-change field on this
+      // instance, and now that recompute_token_price_changes() owns that
+      // column (computed from token_price_history), including it in this
+      // upsert would just reset it back to 0 on every 1-minute run.
       rowsByAddress.set(address.toLowerCase(), {
         contract_address: address,
         name: typeof item.name === "string" ? item.name : "",
@@ -172,7 +168,6 @@ Deno.serve(async (_req) => {
         price_usd: toNumber(item.exchange_rate),
         volume_24h: toNumber(item.volume_24h),
         holder_count: Math.trunc(toNumber(firstDefined(item, HOLDERS_FIELDS))),
-        price_change_24h: toNumber(priceChangeRaw), // 0 if the field doesn't exist
         icon_url: typeof item.icon_url === "string" ? item.icon_url : null,
         decimals: decimalsRaw !== undefined ? Math.trunc(toNumber(decimalsRaw)) : null,
       });
@@ -240,11 +235,7 @@ Deno.serve(async (_req) => {
       duplicates_skipped: duplicatesSkipped,
       price_history_inserted: priceHistoryInserted,
       price_history_unchanged: rows.length - priceHistoryRows.length,
-      price_change_24h_field_found: priceChangeFieldFound,
       decimals_field_found: decimalsFieldFound,
-      note: priceChangeFieldFound
-        ? undefined
-        : "Blockscout response has no 24h price-change field; price_change_24h was written as 0 for every row.",
       decimals_note: decimalsFieldFound
         ? undefined
         : "Blockscout response has no decimals field; tokens.decimals was written as null for every " +

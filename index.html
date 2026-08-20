@@ -1097,6 +1097,11 @@
       background: var(--loss-bg);
     }
 
+    .gain.neutral {
+      color: var(--muted);
+      background: var(--stat-bg);
+    }
+
     .price {
       margin: 19px 0 3px;
       font-size: 28px;
@@ -2784,12 +2789,25 @@
       return d;
     }
 
+    // tokens.price_change_24h_reliable (see
+    // supabase/migrations/20260820090000_compute_token_price_change_24h.sql)
+    // is false when token_price_history doesn't yet have a price observation
+    // at least ~24h old for this token -- rendering price_change_24h as a
+    // precise percentage in that case would show "+0.0%", which reads as
+    // "unchanged" when it actually means "not enough data yet". Render "Low
+    // data" instead, same pattern as formatPnl30d() below for wallets.
+    function formatPriceChange24h(token) {
+      if (!token.price_change_24h_reliable) return { text: "Low data", isLoss: false, unreliable: true };
+      const change = Number(token.price_change_24h) || 0;
+      return { text: formatPct(change), isLoss: change < 0, unreliable: false };
+    }
+
     function tokenCardHtml(token) {
       const rawTicker = (token.ticker || "?").trim();
       const ticker = rawTicker.startsWith("$") ? rawTicker : "$" + rawTicker;
       const name = token.name || rawTicker;
-      const change = Number(token.price_change_24h) || 0;
-      const isLoss = change < 0;
+      const changeInfo = formatPriceChange24h(token);
+      const isLoss = changeInfo.isLoss;
       const initial = rawTicker.replace(/^\$/, "").charAt(0).toUpperCase() || "?";
       const pts = sparklinePoints(!isLoss);
       const linePath = smoothPath(pts);
@@ -2814,7 +2832,7 @@
                 <div class="coin-name">${escapeHtml(name)}</div>
               </div>
             </div>
-            <div class="gain${isLoss ? " loss" : ""}">${isLoss ? "" : "+"}${change.toFixed(1)}%</div>
+            <div class="gain${changeInfo.unreliable ? " neutral" : (isLoss ? " loss" : "")}">${changeInfo.text}</div>
           </div>
 
           <div class="price">${formatPrice(token.price_usd)}</div>
@@ -2834,8 +2852,8 @@
       const rawTicker = (token.ticker || "?").trim();
       const ticker = rawTicker.startsWith("$") ? rawTicker : "$" + rawTicker;
       const name = token.name || rawTicker;
-      const change = Number(token.price_change_24h) || 0;
-      const isLoss = change < 0;
+      const changeInfo = formatPriceChange24h(token);
+      const isLoss = changeInfo.isLoss;
       const initial = rawTicker.replace(/^\$/, "").charAt(0).toUpperCase() || "?";
       const iconUrl = (token.icon_url || "").trim();
       const iconImgHtml = iconUrl
@@ -2850,7 +2868,7 @@
             <div class="ticker" id="tokenModalTitle" style="font-size:19px;">${escapeHtml(ticker)}</div>
             <div class="coin-name">${escapeHtml(name)}</div>
           </div>
-          <div class="gain${isLoss ? " loss" : ""}" style="margin-left:auto;">${isLoss ? "" : "+"}${change.toFixed(1)}%</div>
+          <div class="gain${changeInfo.unreliable ? " neutral" : (isLoss ? " loss" : "")}" style="margin-left:auto;">${changeInfo.text}</div>
         </div>
 
         <div class="price" style="margin:18px 0 2px;">${formatPrice(token.price_usd)}</div>
@@ -2979,6 +2997,7 @@
         let query = sb
           .from("tokens")
           .select("*")
+          .order("price_change_24h_reliable", { ascending: false })
           .order("price_change_24h", { ascending: false })
           .limit(12);
 
@@ -3146,8 +3165,8 @@
 
     async function searchTokensInDb(query) {
       const pattern = `%${escapeLikePattern(query)}%`;
-      let tickerQuery = sb.from("tokens").select("*").ilike("ticker", pattern).order("price_change_24h", { ascending: false }).limit(24);
-      let nameQuery = sb.from("tokens").select("*").ilike("name", pattern).order("price_change_24h", { ascending: false }).limit(24);
+      let tickerQuery = sb.from("tokens").select("*").ilike("ticker", pattern).order("price_change_24h_reliable", { ascending: false }).order("price_change_24h", { ascending: false }).limit(24);
+      let nameQuery = sb.from("tokens").select("*").ilike("name", pattern).order("price_change_24h_reliable", { ascending: false }).order("price_change_24h", { ascending: false }).limit(24);
       if (currentLaunchpad) {
         tickerQuery = tickerQuery.eq("launchpad", currentLaunchpad);
         nameQuery = nameQuery.eq("launchpad", currentLaunchpad);
