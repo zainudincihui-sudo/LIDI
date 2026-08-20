@@ -82,6 +82,28 @@ nullable when Blockscout has no logo for that token). The function writes it
 straight into `tokens.icon_url` with no fallback field names, since this one
 has been stable across Blockscout API versions.
 
+## New tables need `NOTIFY pgrst, 'reload schema'`
+
+`supabase db push` applies migrations over a direct Postgres connection,
+which doesn't itself push a schema-reload notice to PostgREST the way
+changes made through the Supabase dashboard do. A migration that adds a
+table/column meant to be queried over the REST API (`/rest/v1/...`) can
+succeed at the database level while PostgREST keeps serving `PGRST205
+Could not find the table '...' in the schema cache` (HTTP 404) until its
+own periodic reload catches up -- which is exactly what broke the first
+deploy attempt for `alert_rules` (PR 3). End every such migration with:
+
+```sql
+notify pgrst, 'reload schema';
+```
+
+so PostgREST reloads immediately instead of racing whatever invokes the
+REST API right after the migration runs (a deploy workflow's own
+verification curl, a frontend request, etc). Even with the NOTIFY, the
+reload isn't instantaneous, so a deploy workflow's post-migration checks
+should retry a few times with a short delay rather than failing on the
+first cold-cache response (see `deploy-alert-rules-schema.yml`).
+
 ## Field-name fallbacks
 
 The task description named `address_hash` and `holders_count` as the

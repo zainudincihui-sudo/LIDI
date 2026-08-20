@@ -55,16 +55,28 @@ jobs:
           SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
         run: |
           set -euo pipefail
-          HTTP_CODE=$(curl -sS -o alert-rules-service-role.json -w '%{http_code}' \
-            "https://$PROJECT_REF.supabase.co/rest/v1/alert_rules?select=id&limit=1" \
-            -H "apikey: $SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SERVICE_ROLE_KEY")
-          cat alert-rules-service-role.json
-          echo "HTTP $HTTP_CODE"
-          if [ "$HTTP_CODE" -ge 300 ]; then
-            echo "service_role could not read the alert_rules table" >&2
-            exit 1
-          fi
+          # The migration ends with NOTIFY pgrst, 'reload schema' so PostgREST
+          # picks up the new table immediately instead of waiting on its own
+          # periodic reload -- but that notice still takes a moment to
+          # propagate, so retry a few times rather than treating a cold cache
+          # as a real failure (this is what broke the first deploy attempt:
+          # PGRST205 "Could not find the table ... in the schema cache").
+          for attempt in 1 2 3 4 5; do
+            HTTP_CODE=$(curl -sS -o alert-rules-service-role.json -w '%{http_code}' \
+              "https://$PROJECT_REF.supabase.co/rest/v1/alert_rules?select=id&limit=1" \
+              -H "apikey: $SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SERVICE_ROLE_KEY")
+            echo "Attempt $attempt: HTTP $HTTP_CODE"
+            cat alert-rules-service-role.json
+            if [ "$HTTP_CODE" -lt 300 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "service_role could not read the alert_rules table after 5 attempts" >&2
+              exit 1
+            fi
+            sleep 3
+          done
 
       - name: Verify RLS blocks the anon key (this is personal data)
         env:
