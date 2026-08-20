@@ -718,6 +718,50 @@
       line-height: 1.5;
     }
 
+    /* HOW IT WORKS */
+    .how-it-works { padding: 10px 0 6px; }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .how-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .how-step {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(90deg, var(--green), var(--teal), var(--blue), var(--purple));
+      color: #fff;
+      font-weight: 900;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .how-card h3 {
+      margin: 0 0 6px;
+      font-size: 15.5px;
+      letter-spacing: -.3px;
+    }
+
+    .how-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+
     /* TABS */
     .tabs {
       display: flex;
@@ -728,6 +772,40 @@
     }
 
     .tabs::-webkit-scrollbar { display: none; }
+
+    .tab-legend {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px 16px;
+      padding: 0 0 6px;
+    }
+
+    .tab-legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+    }
+
+    .tab-legend-item svg {
+      width: 15px;
+      height: 15px;
+      margin-top: 2px;
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .tab-legend-item span {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .tab-legend-item strong {
+      display: block;
+      color: var(--ink);
+      font-weight: 800;
+      font-size: 12.5px;
+    }
 
     .tab {
       white-space: nowrap;
@@ -1472,6 +1550,8 @@
       .hero-stats { justify-content: center; gap: 24px; }
       .hero-stat strong { font-size: 20px; }
       .grid { grid-template-columns: 1fr; }
+      .how-grid { grid-template-columns: 1fr; }
+      .tab-legend { grid-template-columns: 1fr 1fr; }
       .explore-btn { height: 50px; }
       .footer-top { grid-template-columns: 1fr 1fr; }
       .footer-brand { grid-column: 1 / -1; margin-bottom: 10px; }
@@ -1662,11 +1742,61 @@
         </div>
       </div>
 
+      <section class="how-it-works">
+        <div class="section-heading">
+          <div>
+            <h2>How LIDI Works</h2>
+            <div class="muted">Four steps to seeing who moves first</div>
+          </div>
+        </div>
+        <div class="how-grid">
+          <div class="how-card">
+            <div class="how-step">1</div>
+            <h3>Explore trending tokens</h3>
+            <p>Spot tokens with the highest volume &amp; activity on Robinhood Chain.</p>
+          </div>
+          <div class="how-card">
+            <div class="how-step">2</div>
+            <h3>Follow smart wallets</h3>
+            <p>Track top-performing wallets and add the ones you trust.</p>
+          </div>
+          <div class="how-card">
+            <div class="how-step">3</div>
+            <h3>Watch their activity</h3>
+            <p>See their trades stream in live, the moment they happen.</p>
+          </div>
+          <div class="how-card">
+            <div class="how-step">4</div>
+            <h3>Get the insight first</h3>
+            <p>Act on momentum before it shows up everywhere else.</p>
+          </div>
+        </div>
+      </section>
+
       <div class="tabs" role="tablist">
         <button class="tab active" data-view="trending" role="tab" aria-selected="true"><svg class="icon tab-icon"><use href="#icon-flame"/></svg>Trending</button>
         <button class="tab" data-view="wallets" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-eye"/></svg>Smart Wallets</button>
         <button class="tab" data-view="leaderboard" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-trophy"/></svg>Leaderboard</button>
         <button class="tab" data-view="activity" role="tab" aria-selected="false"><svg class="icon tab-icon"><use href="#icon-zap"/></svg>Activity</button>
+      </div>
+
+      <div class="tab-legend">
+        <div class="tab-legend-item">
+          <svg class="icon"><use href="#icon-flame"/></svg>
+          <span><strong>Trending</strong> Tokens with the highest volume &amp; activity in the last 24h</span>
+        </div>
+        <div class="tab-legend-item">
+          <svg class="icon"><use href="#icon-eye"/></svg>
+          <span><strong>Smart Wallets</strong> Top-performing wallets you can follow</span>
+        </div>
+        <div class="tab-legend-item">
+          <svg class="icon"><use href="#icon-trophy"/></svg>
+          <span><strong>Leaderboard</strong> Wallets ranked by win rate &amp; profit</span>
+        </div>
+        <div class="tab-legend-item">
+          <svg class="icon"><use href="#icon-zap"/></svg>
+          <span><strong>Activity</strong> Live transactions streaming across the chain</span>
+        </div>
       </div>
 
       <!-- TRENDING -->
