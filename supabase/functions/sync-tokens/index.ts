@@ -44,6 +44,16 @@ const PRICE_CHANGE_FIELDS = [
 
 const MAX_PAGES = 10; // safety cap so a runaway paginated response can't run forever
 const BATCH_SIZE = 500;
+// Deliberately much smaller than BATCH_SIZE: this one is only for the
+// previous-price SELECT below, which PostgREST sends as a `.in(...)`
+// query-string filter (part of the URL/HTTP2 headers), not a request body
+// like the upsert/insert calls that use BATCH_SIZE. A live run with ~342
+// tokens in one .in() batch produced a ~15KB request line and failed with
+// "http2 error: stream error detected: unspecific protocol error detected"
+// -- an HTTP/2 header-size limit on the Supabase/Cloudflare edge, not
+// anything wrong with the data. Keeping each SELECT batch small avoids that
+// ceiling regardless of how large `tokens` grows.
+const PRICE_LOOKUP_BATCH_SIZE = 50;
 
 interface BlockscoutTokenItem {
   [key: string]: unknown;
@@ -180,8 +190,8 @@ Deno.serve(async (_req) => {
     // price is constant between two real changes anyway -- only a change
     // needs its own row.
     const previousPriceByAddress = new Map<string, number>();
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE).map((row) => row.contract_address);
+    for (let i = 0; i < rows.length; i += PRICE_LOOKUP_BATCH_SIZE) {
+      const batch = rows.slice(i, i + PRICE_LOOKUP_BATCH_SIZE).map((row) => row.contract_address);
       const { data, error } = await supabase
         .from("tokens")
         .select("contract_address,price_usd")
