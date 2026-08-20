@@ -1,0 +1,158 @@
+name: Deploy check-alerts to Supabase
+
+# Manual trigger only. Run this from the Actions tab after adding the
+# SUPABASE_ACCESS_TOKEN secret (Settings > Secrets and variables > Actions).
+#
+# GitHub-hosted runners have normal internet access, unlike some sandboxed
+# dev environments, so this is the reliable way to actually reach the
+# Supabase Management API / Postgres and deploy check-alerts for real.
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --yes
+
+      - name: Resolve API keys
+        id: keys
+        run: |
+          set -euo pipefail
+          KEYS=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true")
+          SERVICE_KEY=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key')
+          ANON_KEY=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
+          if [ -z "$SERVICE_KEY" ] || [ "$SERVICE_KEY" = "null" ]; then
+            echo "Could not resolve the service_role API key from the Management API" >&2
+            exit 1
+          fi
+          if [ -z "$ANON_KEY" ] || [ "$ANON_KEY" = "null" ]; then
+            echo "Could not resolve the anon API key from the Management API" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          echo "::add-mask::$ANON_KEY"
+          echo "service_key=$SERVICE_KEY" >> "$GITHUB_OUTPUT"
+          echo "anon_key=$ANON_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Store service role key in Vault (for pg_cron)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
+        run: |
+          set -euo pipefail
+          SQL="do \$\$
+          declare
+            v_id uuid;
+          begin
+            select id into v_id from vault.secrets where name = 'check_alerts_service_role_key';
+            if v_id is null then
+              perform vault.create_secret('$SERVICE_ROLE_KEY', 'check_alerts_service_role_key');
+            else
+              perform vault.update_secret(v_id, '$SERVICE_ROLE_KEY');
+            end if;
+          end \$\$;"
+          PAYLOAD=$(jq -n --arg q "$SQL" '{query: $q}')
+          RESP=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n1)
+          echo "$BODY"
+          if [ "$CODE" -ge 300 ]; then
+            echo "Vault secret upsert failed with HTTP $CODE" >&2
+            exit 1
+          fi
+
+      - name: Push migrations
+        run: supabase db push --yes
+
+      - name: Verify alert_events table is reachable with service_role
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
+        run: |
+          set -euo pipefail
+          # 20260820020000_create_alert_events_table.sql ends with
+          # NOTIFY pgrst, 'reload schema' (see supabase/DEPLOY.md), but the
+          # reload still isn't instantaneous -- retry rather than treating a
+          # cold cache as a real failure (see PR 3/4's deploy incident).
+          for attempt in 1 2 3 4 5; do
+            HTTP_CODE=$(curl -sS -o alert-events-service-role.json -w '%{http_code}' \
+              "https://$PROJECT_REF.supabase.co/rest/v1/alert_events?select=id&limit=1" \
+              -H "apikey: $SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SERVICE_ROLE_KEY")
+            echo "Attempt $attempt: HTTP $HTTP_CODE"
+            cat alert-events-service-role.json
+            if [ "$HTTP_CODE" -lt 300 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "service_role could not read the alert_events table after 5 attempts" >&2
+              exit 1
+            fi
+            sleep 3
+          done
+
+      - name: Verify RLS blocks the anon key (this is personal data)
+        env:
+          ANON_KEY: ${{ steps.keys.outputs.anon_key }}
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl -sS -o alert-events-anon.json -w '%{http_code}' \
+            "https://$PROJECT_REF.supabase.co/rest/v1/alert_events?select=id&limit=1" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer $ANON_KEY")
+          cat alert-events-anon.json
+          echo "HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" -lt 300 ]; then
+            echo "anon was able to query alert_events -- it should have no grant on this table at all" >&2
+            exit 1
+          fi
+
+      - name: Deploy check-alerts function
+        run: supabase functions deploy check-alerts --project-ref "$PROJECT_REF" --use-api --yes
+
+      - name: Invoke check-alerts (manual test)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
+        run: |
+          set -euo pipefail
+          curl -sS -X POST "https://$PROJECT_REF.supabase.co/functions/v1/check-alerts" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -o invoke-result.json -w '\nHTTP %{http_code}\n'
+          cat invoke-result.json
+
+      - name: Read back alert_events (10 most recent, if any fired)
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.service_key }}
+        run: |
+          set -euo pipefail
+          curl -sS "https://$PROJECT_REF.supabase.co/rest/v1/alert_events?select=message,is_read,created_at&order=created_at.desc&limit=10" \
+            -H "apikey: $SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -o alert-events-sample.json
+          cat alert-events-sample.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-alerts-deploy-results
+          path: |
+            alert-events-service-role.json
+            alert-events-anon.json
+            invoke-result.json
+            alert-events-sample.json

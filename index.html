@@ -1964,42 +1964,6 @@
       navEl.classList.toggle("scrolled", window.scrollY > 8);
     }, { passive: true });
 
-    // ---- Alerts panel (empty until PR 3-4 of the Follow & Alerts series
-    // land alert rules + real alert detection) ----
-    const alerts = [];
-
-    function renderAlerts() {
-      const list = document.getElementById("alertsList");
-      const empty = document.getElementById("alertsEmpty");
-      const badge = document.getElementById("bellBadge");
-
-      list.innerHTML = alerts.map(a => `
-        <div class="alert-item">
-          <div class="dot"></div>
-          <div>
-            <b>${a.title}</b>
-            <p>${a.body} · ${a.time}</p>
-          </div>
-        </div>
-      `).join("");
-
-      empty.style.display = alerts.length ? "none" : "block";
-      badge.style.display = alerts.length ? "grid" : "none";
-      badge.textContent = alerts.length;
-    }
-
-    function toggleAlerts() {
-      document.getElementById("alertsPanel").classList.toggle("open");
-    }
-
-    document.addEventListener("click", (e) => {
-      const panel = document.getElementById("alertsPanel");
-      const bell = document.getElementById("bellBtn");
-      if (!panel.contains(e.target) && !bell.contains(e.target)) {
-        panel.classList.remove("open");
-      }
-    });
-
     function toggleMenu() {
       document.getElementById("menuPanel").classList.toggle("open");
     }
@@ -2257,6 +2221,7 @@
       updateAuthUI();
       if (session) closeAuthModal();
       loadFollowedWalletIds();
+      loadAlertEvents();
     });
 
     // ---- Follow (Supabase-backed, requires sign-in) ----
@@ -2487,6 +2452,83 @@
         console.error("Failed to delete alert rule:", (err && (err.message || err.details)) || err);
       }
     };
+
+    // ---- Alerts panel (in-app notifications from alert_events, produced
+    // by the check-alerts Edge Function on a schedule -- see PR 4) ----
+    let alertEvents = [];
+
+    async function loadAlertEvents() {
+      if (!currentUser) {
+        alertEvents = [];
+        renderAlerts();
+        return;
+      }
+      try {
+        const { data, error } = await sb
+          .from("alert_events")
+          .select("id, message, is_read, created_at")
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        alertEvents = data || [];
+      } catch (err) {
+        console.error("Failed to load alert events:", (err && (err.message || err.details)) || err);
+        alertEvents = [];
+      }
+      renderAlerts();
+    }
+
+    function renderAlerts() {
+      const list = document.getElementById("alertsList");
+      const empty = document.getElementById("alertsEmpty");
+      const badge = document.getElementById("bellBadge");
+      const unreadCount = alertEvents.filter(a => !a.is_read).length;
+
+      list.innerHTML = alertEvents.map(a => `
+        <div class="alert-item">
+          <div class="dot"></div>
+          <div>
+            <b>${escapeHtml(a.message)}</b>
+            <p>${formatRelativeTime(a.created_at)}</p>
+          </div>
+        </div>
+      `).join("");
+
+      empty.textContent = currentUser
+        ? "No alerts yet — set up an alert rule to get notified."
+        : "Sign in and follow a wallet to start getting alerts here.";
+      empty.style.display = alertEvents.length ? "none" : "block";
+      badge.style.display = unreadCount ? "grid" : "none";
+      badge.textContent = unreadCount;
+    }
+
+    function toggleAlerts() {
+      const panel = document.getElementById("alertsPanel");
+      const wasOpen = panel.classList.contains("open");
+      panel.classList.toggle("open");
+      if (!wasOpen) markAlertEventsRead();
+    }
+
+    document.addEventListener("click", (e) => {
+      const panel = document.getElementById("alertsPanel");
+      const bell = document.getElementById("bellBtn");
+      if (!panel.contains(e.target) && !bell.contains(e.target)) {
+        panel.classList.remove("open");
+      }
+    });
+
+    async function markAlertEventsRead() {
+      if (!currentUser || !alertEvents.some(a => !a.is_read)) return;
+      // Optimistic local update so the badge clears immediately.
+      alertEvents = alertEvents.map(a => ({ ...a, is_read: true }));
+      renderAlerts();
+      try {
+        const { error } = await sb.from("alert_events").update({ is_read: true }).eq("is_read", false);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Failed to mark alerts read:", (err && (err.message || err.details)) || err);
+      }
+    }
 
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, c => ({
