@@ -2889,7 +2889,7 @@
           </div>
           <div class="stat">
             <div class="muted">24h Change</div>
-            <strong${isLoss ? ' style="color:var(--loss-text)"' : ""}>${isLoss ? "" : "+"}${change.toFixed(1)}%</strong>
+            <strong${!changeInfo.unreliable && isLoss ? ' style="color:var(--loss-text)"' : ""}>${changeInfo.text}</strong>
           </div>
         </div>
 
