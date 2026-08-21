@@ -185,27 +185,14 @@
 
     .reveal {
       opacity: 0;
-      transform: translateY(22px);
-      transition: opacity .6s ease, transform .6s ease;
+      transform: translateY(20px);
+      transition: opacity .45s ease-out, transform .45s ease-out;
     }
 
     .reveal.visible {
       opacity: 1;
       transform: translateY(0);
     }
-
-    .grid .reveal:nth-child(1) { transition-delay: 0s; }
-    .grid .reveal:nth-child(2) { transition-delay: .08s; }
-    .grid .reveal:nth-child(3) { transition-delay: .16s; }
-
-    .lb-row.reveal:nth-child(1) { transition-delay: 0s; }
-    .lb-row.reveal:nth-child(2) { transition-delay: .06s; }
-    .lb-row.reveal:nth-child(3) { transition-delay: .12s; }
-    .lb-row.reveal:nth-child(4) { transition-delay: .18s; }
-
-    .activity.reveal:nth-child(1) { transition-delay: 0s; }
-    .activity.reveal:nth-child(2) { transition-delay: .08s; }
-    .activity.reveal:nth-child(3) { transition-delay: .16s; }
 
     body {
       margin: 0;
@@ -2110,9 +2097,6 @@
     }
 
     // ---- Scroll reveal ----
-    document.querySelectorAll(".token-card, .wallet-card, .lb-row, .activity")
-      .forEach(el => el.classList.add("reveal"));
-
     const revealObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -2122,7 +2106,35 @@
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
 
-    document.querySelectorAll(".reveal").forEach(el => revealObserver.observe(el));
+    function isElementInViewport(el) {
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      return rect.width > 0 && rect.height > 0 && rect.top < vh && rect.bottom > 0;
+    }
+
+    // Wires elements up for scroll-reveal (fade-in + slide-up, once per
+    // element). Elements already inside the viewport (e.g. above-the-fold
+    // content on first load) show immediately instead of waiting on the
+    // observer. `staggerMs`, if set, adds an increasing transition-delay
+    // per item so a list of cards reveals one after another.
+    function initScrollReveal(elements, staggerMs = 0) {
+      elements.forEach((el, i) => {
+        if (el.classList.contains("reveal")) return;
+        el.classList.add("reveal");
+        if (staggerMs) el.style.transitionDelay = `${i * staggerMs}ms`;
+        if (isElementInViewport(el)) {
+          el.classList.add("visible");
+        } else {
+          revealObserver.observe(el);
+        }
+      });
+    }
+
+    initScrollReveal([document.querySelector(".hero-text")]);
+    initScrollReveal([document.querySelector(".how-it-works .section-heading")]);
+    initScrollReveal(document.querySelectorAll(".how-it-works .how-card"), 70);
+    initScrollReveal(document.querySelectorAll(".tab-caption"));
+    initScrollReveal(document.querySelectorAll("#about .info-card"));
 
     const tabs = document.querySelectorAll(".tab");
     const views = document.querySelectorAll(".view");
@@ -3015,7 +3027,7 @@
         // before this initial load resolved) -- don't clobber it.
         if (!document.getElementById("search").value.trim()) {
           grid.innerHTML = defaultTokensHtml;
-          grid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+          initScrollReveal(grid.querySelectorAll(".token-card"), 60);
           status.textContent = "Live from Supabase";
         }
       } catch (err) {
@@ -3137,7 +3149,7 @@
 
         if (!document.getElementById("search").value.trim()) {
           grid.innerHTML = defaultWalletsHtml;
-          grid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+          initScrollReveal(grid.querySelectorAll(".wallet-card"), 60);
           status.textContent = "Live from Supabase";
           refreshFollowButtonsUI();
         }
@@ -3197,13 +3209,13 @@
     function showDefaultResults() {
       const tokenGrid = document.getElementById("tokenGrid");
       tokenGrid.innerHTML = defaultTokensHtml;
-      tokenGrid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+      initScrollReveal(tokenGrid.querySelectorAll(".token-card"), 60);
       document.getElementById("emptyTrending").style.display = "none";
       document.getElementById("trendingStatus").textContent = "Live from Supabase";
 
       const walletGrid = document.getElementById("walletGrid");
       walletGrid.innerHTML = defaultWalletsHtml;
-      walletGrid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+      initScrollReveal(walletGrid.querySelectorAll(".wallet-card"), 60);
       document.getElementById("emptyWallets").style.display = "none";
       document.getElementById("walletsStatus").textContent = "Live from Supabase";
       refreshFollowButtonsUI();
@@ -3231,14 +3243,14 @@
 
         const tokenGrid = document.getElementById("tokenGrid");
         tokenGrid.innerHTML = tokens.map(tokenCardHtml).join("");
-        tokenGrid.querySelectorAll(".token-card").forEach(el => el.classList.add("reveal", "visible"));
+        initScrollReveal(tokenGrid.querySelectorAll(".token-card"), 60);
         document.getElementById("emptyTrending").style.display = tokens.length === 0 ? "block" : "none";
         document.getElementById("trendingStatus").textContent =
           tokens.length ? `${tokens.length} token cocok` : `Tidak ada token untuk "${query}"`;
 
         const walletGrid = document.getElementById("walletGrid");
         walletGrid.innerHTML = wallets.map(walletCardHtml).join("");
-        walletGrid.querySelectorAll(".wallet-card").forEach(el => el.classList.add("reveal", "visible"));
+        initScrollReveal(walletGrid.querySelectorAll(".wallet-card"), 60);
         document.getElementById("emptyWallets").style.display = wallets.length === 0 ? "block" : "none";
         document.getElementById("walletsStatus").textContent =
           wallets.length ? `${wallets.length} wallet cocok` : `Tidak ada wallet untuk "${query}"`;
@@ -3303,6 +3315,7 @@
         }
 
         grid.innerHTML = data.map((wallet, i) => leaderboardRowHtml(wallet, i + 1)).join("");
+        initScrollReveal(grid.querySelectorAll(".lb-row"), 60);
         status.textContent = "Top traders · 30D · Live from Supabase";
         refreshFollowButtonsUI();
       } catch (err) {
@@ -3369,7 +3382,7 @@
         }
 
         feed.innerHTML = data.map(activityRowHtml).join("");
-        feed.querySelectorAll(".activity").forEach(el => el.classList.add("reveal", "visible"));
+        initScrollReveal(feed.querySelectorAll(".activity"), 60);
         status.textContent = "Live from Supabase";
       } catch (err) {
         console.error("Failed to load live activity:", (err && (err.message || err.details)) || err);
