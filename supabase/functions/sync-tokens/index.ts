@@ -17,6 +17,13 @@
 // this instance, and writing a hardcoded 0 into that column on every
 // 1-minute run is exactly what made Trending's badge always show "+0.0%".
 //
+// Also writes one baseline token_price_history row per token even when its
+// price hasn't moved, the first time that token has no history at all --
+// otherwise a token whose Blockscout exchange_rate never changes (most of
+// them, on this instance) would never get a single history row, and
+// price_change_24h_reliable would stay false forever instead of just until
+// 24h of real history built up. See the tokensWithHistory lookup below.
+//
 // Triggered on a schedule via pg_cron (see supabase/migrations), and can
 // also be invoked manually for testing:
 //   supabase functions invoke sync-tokens
@@ -210,12 +217,46 @@ Deno.serve(async (_req) => {
       upserted += batch.length;
     }
 
-    // A token with no entry in previousPriceByAddress is one sync-tokens
-    // has never seen before (first time this contract_address was upserted)
-    // -- its price counts as "changed" so it gets a first history row too,
-    // rather than silently having no history until its price next moves.
+    // Tokens that already have at least one token_price_history row.
+    // Investigation (>35h after this table + recompute_token_price_changes()
+    // first deployed): the "only insert on a real price change" filter below
+    // never fires for the 452 tokens that already existed when this table
+    // was created, because Blockscout's exchange_rate for this instance
+    // simply never changes for most tokens -- so previousPriceByAddress
+    // already matched the freshly-fetched price on day one, and every run
+    // since. Zero of those tokens ever got a single history row, which
+    // means recompute_token_price_changes() can never find a 24h-ago
+    // observation for them -- price_change_24h_reliable was stuck at false
+    // forever, not just "not enough time yet". This lookup lets a token
+    // with no history get one baseline row even when its price hasn't
+    // moved, so there's a starting point to compare 24h later. Same
+    // PRICE_LOOKUP_BATCH_SIZE batching as previousPriceByAddress above, for
+    // the same HTTP/2 header-size reason.
+    const tokensWithHistory = new Set<string>();
+    for (let i = 0; i < rows.length; i += PRICE_LOOKUP_BATCH_SIZE) {
+      const batch = rows.slice(i, i + PRICE_LOOKUP_BATCH_SIZE).map((row) => row.contract_address);
+      const { data, error } = await supabase
+        .from("token_price_history")
+        .select("token_address")
+        .in("token_address", batch);
+      if (error) throw new Error(`Failed to check existing price history: ${error.message}`);
+      for (const row of data ?? []) {
+        tokensWithHistory.add(String(row.token_address).toLowerCase());
+      }
+    }
+
+    // A row is written when its price actually changed (as before), OR when
+    // the token has no history row at all yet (the baseline case above). A
+    // token with no entry in previousPriceByAddress (never seen before) has
+    // no history either, so it's already covered by the second condition --
+    // it still gets exactly one first-ever row, not two.
     const priceHistoryRows = rows
-      .filter((row) => previousPriceByAddress.get(row.contract_address.toLowerCase()) !== row.price_usd)
+      .filter((row) => {
+        const address = row.contract_address.toLowerCase();
+        const priceChanged = previousPriceByAddress.get(address) !== row.price_usd;
+        const noBaselineYet = !tokensWithHistory.has(address);
+        return priceChanged || noBaselineYet;
+      })
       .map((row) => ({ token_address: row.contract_address, price_usd: row.price_usd }));
 
     let priceHistoryInserted = 0;
@@ -234,6 +275,9 @@ Deno.serve(async (_req) => {
       skipped_missing_address: skipped,
       duplicates_skipped: duplicatesSkipped,
       price_history_inserted: priceHistoryInserted,
+      price_history_baseline_inserted: priceHistoryRows.filter(
+        (row) => !tokensWithHistory.has(row.token_address.toLowerCase()),
+      ).length,
       price_history_unchanged: rows.length - priceHistoryRows.length,
       decimals_field_found: decimalsFieldFound,
       decimals_note: decimalsFieldFound

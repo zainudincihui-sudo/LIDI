@@ -70,7 +70,17 @@ but only when a token's `price_usd` actually changed from what's already on
 its `tokens` row -- not on every run. At the 1-minute cron cadence
 (20260820050000), inserting unconditionally would be on the order of
 `fetched` rows every minute for no extra precision, since the price is
-constant between two real changes anyway. Verify it's populating:
+constant between two real changes anyway.
+
+It also writes one **baseline** row for any token that has no history row
+at all yet, even when its price hasn't changed -- exactly once per token,
+never again once that row exists. Without this, a token whose Blockscout
+`exchange_rate` never moves (most of them, confirmed live: `tokens_total:
+452, reliable_true: 0` and zero `token_price_history` rows more than 35h
+after this table + `recompute_token_price_changes()` first deployed) would
+never get a single history row, and `price_change_24h_reliable` would stay
+`false` forever instead of just until 24h of real history built up. Verify
+it's populating:
 
 ```sql
 select token_address, price_usd, recorded_at
@@ -119,8 +129,16 @@ history reaching back that far (just discovered, or a very old row that's
 aged out of the 60-day retention window) get `price_change_24h_reliable =
 false` instead of a computed percentage — the frontend renders "Low data"
 for those rather than a `price_change_24h` of `0` that would read as "the
-price hasn't moved" when it actually means "not enough history yet". Verify
-it's populating real values:
+price hasn't moved" when it actually means "not enough history yet".
+
+That 24h-history requirement only starts counting once a token has an
+actual `token_price_history` row to measure from -- see the baseline-row
+change above. So after this deploys, expect `price_change_24h_reliable`
+to stay `false` for roughly another 24h (until the baseline rows written
+by the first post-deploy sync-tokens run are old enough to be "at or
+before 24 hours ago"), then flip to `true` for most tokens within the next
+`recompute_token_price_changes()` run (at most 15 minutes later) -- not
+immediately on deploy. Verify it's populating real values:
 
 ```sql
 select contract_address, ticker, price_usd, price_change_24h, price_change_24h_reliable
