@@ -62,3 +62,29 @@ jobs:
         run: |
           ./run_query.sh "last 3 sync-tokens-every-1-min runs" \
             "select status, return_message, start_time, end_time from cron.job_run_details r join cron.job j on j.jobid = r.jobid where j.jobname = 'sync-tokens-every-1-min' order by r.start_time desc limit 3;"
+
+      - name: Blockscout /api/v2/tokens live status right now
+        run: |
+          echo "=== Blockscout /api/v2/tokens live status ==="
+          curl -sS -o /dev/null -w 'HTTP %{http_code}\n' "https://robinhoodchain.blockscout.com/api/v2/tokens"
+
+      - name: Resolve service role key
+        id: keys
+        run: |
+          set -euo pipefail
+          KEY=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true" \
+            | jq -r '.[] | select(.name=="service_role") | .api_key')
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Invoke sync-tokens directly, right now
+        env:
+          SERVICE_ROLE_KEY: ${{ steps.keys.outputs.key }}
+        run: |
+          set -euo pipefail
+          echo "=== Direct sync-tokens invoke ==="
+          curl -sS -X POST "https://$PROJECT_REF.supabase.co/functions/v1/sync-tokens" \
+            -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -w '\nHTTP %{http_code}\n'
