@@ -13,6 +13,11 @@ name: Diagnose price_change_24h_reliable stuck at Low data
 # changes. Safe to delete once the investigation concludes.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/lidi-price-change-low-data-j8if8j
+    paths:
+      - .github/workflows/diagnose-price-change-reliable.yml
 
 env:
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
