@@ -1,0 +1,64 @@
+name: Verify baseline token_price_history rows
+
+# One-off, not part of the normal deploy pipeline -- verifying the baseline
+# row logic added in PR #44 actually took effect once pg_cron's next
+# sync-tokens tick runs (the deploy workflow's own manual invoke hit a
+# transient Blockscout 500 before reaching that code path). Read-only.
+# Safe to delete once confirmed.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/verify-baseline-rows
+    paths:
+      - .github/workflows/verify-baseline-rows.yml
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query helper
+        run: |
+          cat > run_query.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          LABEL="$1"
+          SQL="$2"
+          echo "=== $LABEL ==="
+          PAYLOAD=$(jq -n --arg q "$SQL" '{query: $q}')
+          RESP=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n1)
+          echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+          echo "(HTTP $CODE)"
+          echo
+          SCRIPT
+          chmod +x run_query.sh
+
+      - name: token_price_history overall stats
+        run: |
+          ./run_query.sh "overall token_price_history stats" \
+            "select count(*) as total_rows, count(distinct token_address) as distinct_tokens, min(recorded_at) as earliest, max(recorded_at) as latest from token_price_history;"
+
+      - name: Coverage across all tokens
+        run: |
+          ./run_query.sh "coverage of token_price_history across all tokens" \
+            "select count(*) as tokens_total, count(*) filter (where h.rows > 0) as tokens_with_any_history from tokens t left join (select token_address, count(*) as rows from token_price_history group by token_address) h on lower(h.token_address) = lower(t.contract_address);"
+
+      - name: Sample tokens (USDG/VIRTUAL/WETH/SYRUPUSDG)
+        run: |
+          ./run_query.sh "token_price_history rows for the sample tickers" \
+            "select t.ticker, h.token_address, count(*) as history_rows, min(h.recorded_at) as earliest, max(h.recorded_at) as latest from token_price_history h join tokens t on lower(t.contract_address) = lower(h.token_address) where t.ticker in ('USDG','VIRTUAL','WETH','SYRUPUSDG') group by t.ticker, h.token_address order by t.ticker;"
+
+      - name: Most recent sync-tokens cron run
+        run: |
+          ./run_query.sh "last 3 sync-tokens-every-1-min runs" \
+            "select status, return_message, start_time, end_time from cron.job_run_details r join cron.job j on j.jobid = r.jobid where j.jobname = 'sync-tokens-every-1-min' order by r.start_time desc limit 3;"
