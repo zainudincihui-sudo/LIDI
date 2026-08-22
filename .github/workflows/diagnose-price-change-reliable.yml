@@ -1,0 +1,80 @@
+name: Diagnose price_change_24h_reliable stuck at Low data
+
+# One-off diagnostic, not part of the normal deploy pipeline. >40h after
+# PR #40 (20260820090000_compute_token_price_change_24h.sql) deployed,
+# Trending still shows "Low data" for every token. Investigating whether
+# pg_cron is still running recompute_token_price_changes() and sync-tokens,
+# how many tokens/rows actually have price_change_24h_reliable = true, and
+# whether token_price_history is populating for USDG/VIRTUAL/WETH/SYRUPUSDG.
+#
+# Uses the Supabase Management API's database/query endpoint (same
+# authenticated pattern as the "Store service role key in Vault" step in
+# deploy-sync-tokens.yml) to run read-only SQL directly -- no schema or data
+# changes. Safe to delete once the investigation concludes.
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  PROJECT_REF: ruatieohvdxjnmcfhqwh
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query helper
+        run: |
+          cat > run_query.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          LABEL="$1"
+          SQL="$2"
+          echo "=== $LABEL ==="
+          PAYLOAD=$(jq -n --arg q "$SQL" '{query: $q}')
+          RESP=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n1)
+          echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+          echo "(HTTP $CODE)"
+          echo
+          SCRIPT
+          chmod +x run_query.sh
+
+      - name: pg_cron job definitions
+        run: |
+          ./run_query.sh "cron.job rows for our two jobs" \
+            "select jobid, jobname, schedule, active from cron.job where jobname in ('recompute-token-price-changes-every-15-min','sync-tokens-every-1-min') order by jobname;"
+
+      - name: pg_cron recent run history
+        run: |
+          ./run_query.sh "last 20 cron.job_run_details rows for our two jobs" \
+            "select j.jobname, r.status, r.return_message, r.start_time, r.end_time from cron.job_run_details r join cron.job j on j.jobid = r.jobid where j.jobname in ('recompute-token-price-changes-every-15-min','sync-tokens-every-1-min') order by r.start_time desc limit 20;"
+
+      - name: tokens.price_change_24h_reliable counts
+        run: |
+          ./run_query.sh "reliable true/false counts across all tokens" \
+            "select count(*) as tokens_total, count(*) filter (where price_change_24h_reliable) as reliable_true, count(*) filter (where not price_change_24h_reliable) as reliable_false from tokens;"
+
+      - name: Sample tokens (USDG/VIRTUAL/WETH/SYRUPUSDG)
+        run: |
+          ./run_query.sh "current tokens row for the sample tickers" \
+            "select ticker, contract_address, price_usd, price_change_24h, price_change_24h_reliable from tokens where ticker in ('USDG','VIRTUAL','WETH','SYRUPUSDG') order by ticker;"
+
+      - name: token_price_history overall stats
+        run: |
+          ./run_query.sh "overall token_price_history stats" \
+            "select count(*) as total_rows, count(distinct token_address) as distinct_tokens, min(recorded_at) as earliest, max(recorded_at) as latest from token_price_history;"
+
+      - name: token_price_history per sample token
+        run: |
+          ./run_query.sh "token_price_history rows for the sample tickers" \
+            "select t.ticker, h.token_address, count(*) as history_rows, count(distinct h.price_usd) as distinct_prices, min(h.recorded_at) as earliest, max(h.recorded_at) as latest from token_price_history h join tokens t on lower(t.contract_address) = lower(h.token_address) where t.ticker in ('USDG','VIRTUAL','WETH','SYRUPUSDG') group by t.ticker, h.token_address order by t.ticker;"
+
+      - name: How many tokens have any / 24h+ of history
+        run: |
+          ./run_query.sh "coverage of token_price_history across all tokens" \
+            "select count(*) as tokens_total, count(*) filter (where h.rows > 0) as tokens_with_any_history, count(*) filter (where h.min_recorded <= now() - interval '24 hours') as tokens_with_24h_plus_history from tokens t left join (select token_address, count(*) as rows, min(recorded_at) as min_recorded from token_price_history group by token_address) h on lower(h.token_address) = lower(t.contract_address);"
