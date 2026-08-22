@@ -2760,6 +2760,13 @@
       const num = Number(n) || 0;
       if (num >= 1e6) return "$" + (num / 1e6).toFixed(2) + "M";
       if (num >= 1e3) return "$" + (num / 1e3).toFixed(1) + "K";
+      // Sub-$1 transactions (common for low-liquidity/newly-launched tokens)
+      // would otherwise round to "$0" under toFixed(0), reading as if the
+      // transaction had no value at all instead of a genuine small one.
+      // Below $0.0001 even 4 decimals rounds to "0.0000", which reads the
+      // same as a real zero -- use a floor label instead.
+      if (num > 0 && num < 0.0001) return "<$0.0001";
+      if (num > 0 && num < 1) return "$" + num.toFixed(num < 0.01 ? 4 : 2);
       return "$" + num.toFixed(0);
     }
 
