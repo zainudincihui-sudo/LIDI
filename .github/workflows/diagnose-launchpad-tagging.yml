@@ -10,6 +10,11 @@ name: Diagnose launchpad tagging (one-off)
 # price_change_24h_reliable).
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/trending-launchpad-tagging-356erg
+    paths:
+      - .github/workflows/diagnose-launchpad-tagging.yml
 
 env:
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
